@@ -147,9 +147,6 @@ class VegaMargin(object):
 
         logger.info('Calculate {0} Vega Margin for {1}'.format(risk_class, gp.Bucket.unique()))
 
-        # gp = gp.apply(self.calculate_risk_group, axis=1, params=params)
-        # gp = self.calculate_CR_Threshold(gp, params)
-
         s = self.build_risk_factors(gp, params)
         RW = self.build_risk_weights(gp, params)
 
