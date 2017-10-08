@@ -2,7 +2,8 @@ import numpy as np
 import pandas as pd
 import os
 import logging
-import math
+from math import exp
+import re
 
 ##############################
 # Setup Logging Configuration
@@ -22,65 +23,47 @@ if not len(logger.handlers):
     logger.addHandler(file_handler)
 ###############################
 
-def build_concentration_risk(pos_gp, params, margin):
-    risk_class = pos_gp.RiskClass.unique()[0]
 
-    pos_gp_CR = pos_gp.groupby(['Qualifier', 'Risk_Group']).agg({'AmountUSD': np.sum, 'CR_THR': np.average})
-    pos_gp_CR.reset_index(inplace=True)
-    pos_gp_CR['CR'] = pos_gp_CR.apply(lambda d: max(1, math.sqrt(abs(d['AmountUSD']) / d['CR_THR'])), axis=1)
+def convert_tenor_to_years(tenor):
+    # convert tenor to year fraction
 
-    if risk_class == 'IR':
-        CR = pos_gp_CR['CR'].values
+    freq = tenor[re.search('\D', tenor).start():]
+    unit = float(tenor[:re.search('\D', tenor).start()])
 
-    elif risk_class in ['CreditQ', 'CreditNonQ']:
-        CR = pos_gp_CR['CR'].values
+    if freq == 'm':
+        years = unit / 12
+    elif freq == 'y':
+        years = unit
 
-        if risk_class == 'CreditQ':
-            tenors = params.CreditQ_Tenor
-        else:
-            tenors = params.CreditNonQ_Tenor
+    return years
 
-        if risk_class == 'CreditQ' and margin == 'Delta':
-            num_factors = len(tenors) * params.CreditQ_num_sec_type
-        else:
-            num_factors = len(tenors)
 
-        CR = np.repeat(CR, num_factors)
-
-    else:
-        pos_gp_CR = pd.merge(pos_gp, pos_gp_CR[['Qualifier', 'Risk_Group', 'CR']], how='left')
-        CR = pos_gp_CR['CR']
-        CR = CR.values
-
-    return CR
-
-def build_in_bucket_correlation(pos_gp, params, margin, CR):
+def build_in_bucket_correlation(pos_gp, params, margin):
     risk_class = pos_gp.RiskClass.unique()[0]
     if risk_class not in ['IR', 'FX']:
         bucket = pos_gp.Bucket.unique()[0]
 
     if risk_class == 'IR':
-        gp_curr = pos_gp.Qualifier.unique()[0]
-        curve = params.IR_Sub_Curve
-        if gp_curr == 'USD':
-            curve = params.IR_USD_Sub_Curve
 
-        fai = np.zeros((len(curve), len(curve)))
+        num_tenors = len(params.IR_Tenor)
+        tenor_years = [convert_tenor_to_years(tenor) for tenor in params.IR_Tenor]
+
+        # Same curve, diff vertex
+        rho = np.zeros((num_tenors, num_tenors))
+        for i in range(num_tenors):
+            for j in range(num_tenors):
+                rho[i, j] = max(exp(-params.IR_Theta * abs(tenor_years[i] - tenor_years[j]) / min(tenor_years[i], tenor_years[j])), 0.4)
+
+        curves = pos_gp.Label1.unique()
+        fai = np.zeros((len(curves), len(curves)))
         fai.fill(params.IR_Fai)
         np.fill_diagonal(fai, 1)
 
-        if margin == 'Vega' or margin == 'Curvature':
-            fai = 1
-
-        rho = params.IR_Corr
-        if margin == 'Curvature':
-            rho = rho * rho
-
-        Corr = np.kron(rho, fai)
+        Corr = np.kron(fai, rho)
 
         pos_inflation = pos_gp[pos_gp.RiskType == 'Risk_Inflation'].copy()
         if len(pos_inflation) > 0:
-            inflation_rho = np.ones(len(curve)*len(params.IR_Tenor)) * params.IR_Inflation_Rho
+            inflation_rho = np.ones(len(curves)*len(params.IR_Tenor)) * params.IR_Inflation_Rho
             inflation_rho_column = np.reshape(inflation_rho, (len(inflation_rho), 1))
             Corr = np.append(Corr, inflation_rho_column, axis=1)
 
@@ -147,6 +130,7 @@ def build_in_bucket_correlation(pos_gp, params, margin, CR):
 
     return Corr
 
+
 def build_bucket_correlation(pos_delta, params, margin):
     risk_class = pos_delta.RiskClass.unique()[0]
 
@@ -155,16 +139,8 @@ def build_bucket_correlation(pos_delta, params, margin):
     if risk_class == 'IR':
         all_curr = pos_delta.Group.unique()
         g = np.ones((len(all_curr), len(all_curr)))
-
-        if not margin == 'Curvature':
-            for i in range(len(all_curr)):
-                for j in range(len(all_curr)):
-                    CRi = pos_delta.iloc[[i]].CR.values[0]
-                    CRj = pos_delta.iloc[[j]].CR.values[0]
-
-                    g[i][j] = min(CRi, CRj) / max(CRi, CRj)
-
-        g = g * params.IR_Gamma
+        g.fill(params.IR_Gamma)
+        np.fill_diagonal(g, 1)
     elif risk_class == 'CreditQ':
         g = params.CreditQ_Corr
     elif risk_class == 'CreditNonQ':

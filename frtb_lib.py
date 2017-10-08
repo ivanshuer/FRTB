@@ -32,227 +32,41 @@ if not len(logger.handlers):
 def prep_output_directory(params):
     """Setup output directory by product and risk class"""
 
-    for prod in params.Product:
+    for prod in params.RiskClass:
         output_path = '{0}\{1}'.format(os.getcwd(), prod)
         if os.path.exists(output_path):
             shutil.rmtree(output_path)
 
         os.mkdir(output_path)
 
-    for prod in params.Product:
-        for risk in params.RiskType:
-            output_path = '{0}\{1}\{2}'.format(os.getcwd(), prod, risk)
-            if not os.path.exists(output_path):
-                os.mkdir(output_path)
-
-    output_path = '{0}\simm_all_margin.csv'.format(os.getcwd())
+    output_path = '{0}\all_margin.csv'.format(os.getcwd())
     if os.path.exists(output_path):
         os.remove(output_path)
 
 def risk_classification(trades_pos, params):
     """Risk class classification in terms of RiskType"""
 
-    # Check product type
-    trades_pos_no_product = trades_pos[~trades_pos.ProductClass.isin(params.Product)].copy()
-    if len(trades_pos_no_product) > 0:
-        logger.info('{0} trades missed Product Class'.format(len(trades_pos_no_product)))
-        trades_pos_no_product['reason'] = 'Product'
-
-    trades_pos = trades_pos[trades_pos.ProductClass.isin(params.Product)].copy()
-
     # Determine risk class
     trades_pos['RiskClass'] = np.NaN
     trades_pos.ix[trades_pos.RiskType.isin(params.IR), 'RiskClass'] = 'IR'
-    trades_pos.ix[trades_pos.RiskType.isin(params.CreditQ), 'RiskClass'] = 'CreditQ'
-    trades_pos.ix[trades_pos.RiskType.isin(params.CreditNonQ), 'RiskClass'] = 'CreditNonQ'
+    trades_pos.ix[trades_pos.RiskType.isin(params.CSR), 'RiskClass'] = 'CSR'
+    trades_pos.ix[trades_pos.RiskType.isin(params.CSRNonCTP), 'RiskClass'] = 'CSRNonCTP'
+    trades_pos.ix[trades_pos.RiskType.isin(params.CSRCTP), 'RiskClass'] = 'CSRCTP'
     trades_pos.ix[trades_pos.RiskType.isin(params.Equity), 'RiskClass'] = 'Equity'
     trades_pos.ix[trades_pos.RiskType.isin(params.FX), 'RiskClass'] = 'FX'
     trades_pos.ix[trades_pos.RiskType.isin(params.Commodity), 'RiskClass'] = 'Commodity'
 
-    trades_pos_no_risk_class = trades_pos[~trades_pos.RiskClass.isin(params.RiskType)].copy()
+    trades_pos_no_risk_class = trades_pos[~trades_pos.RiskClass.isin(params.RiskClass)].copy()
     if len(trades_pos_no_risk_class) > 0:
         logger.info('{0} trades can not be classified for risk class'.format(len(trades_pos_no_risk_class)))
         trades_pos_no_risk_class['reason'] = 'RiskType'
 
-    trades_pos = trades_pos[trades_pos.RiskClass.isin(params.RiskType)].copy()
-
-    # Check qualifier
-    trades_pos_no_qualifier = trades_pos[trades_pos.Qualifier.isnull()].copy()
-    if len(trades_pos_no_qualifier) > 0:
-        logger.info('{0} trades missed Qualifiers'.format(len(trades_pos_no_qualifier)))
-        trades_pos_no_risk_class['reason'] = 'Qualifiers'
-
-    trades_pos = trades_pos[trades_pos.Qualifier.notnull()].copy()
+    trades_pos = trades_pos[trades_pos.RiskClass.isin(params.RiskClass)].copy()
     trades_pos['reason'] = 'Good'
 
-    trades_pos = pd.concat([trades_pos, trades_pos_no_product, trades_pos_no_risk_class, trades_pos_no_qualifier])
+    trades_pos = pd.concat([trades_pos, trades_pos_no_risk_class])
 
     return trades_pos
-
-def prep_data_IRCurve(pos, params):
-    """Check data quality for IR Curve factor"""
-
-    # Check Bucket
-    pos_no_bucket = pos[~pos.Bucket.isin(params.IR_Bucket)].copy()
-    if len(pos_no_bucket) > 0:
-        logger.info('{0} IR Curve trades have wrong Bucket'.format(len(pos_no_bucket)))
-        pos_no_bucket['reason'] = 'Bucket'
-
-    pos = pos[pos.Bucket.isin(params.IR_Bucket)].copy()
-
-    # Check Label1
-    pos_no_label1 = pos[~pos.Label1.isin(params.IR_Tenor)].copy()
-    if len(pos_no_label1) > 0:
-        logger.info('{0} IR Curve trades have wrong Label 1'.format(len(pos_no_label1)))
-        pos_no_label1['reason'] = 'Label1'
-
-    pos = pos[pos.Label1.isin(params.IR_Tenor)].copy()
-
-    # Check Label2
-    pos_no_label2 = pos[~(((pos.Qualifier == 'USD') & pos.Label2.isin(params.IR_USD_Sub_Curve)) |
-                          ((pos.Qualifier != 'USD') & pos.Label2.isin(params.IR_Sub_Curve)))].copy()
-
-    if len(pos_no_label2) > 0:
-        logger.info('{0} IR Curve trades have wrong Label 2'.format(len(pos_no_label2)))
-        pos_no_label2['reason'] = 'Label2'
-
-    pos = pos[((pos.Qualifier == 'USD') & pos.Label2.isin(params.IR_USD_Sub_Curve)) |
-              ((pos.Qualifier != 'USD') & pos.Label2.isin(params.IR_Sub_Curve))].copy()
-
-    pos = pd.concat([pos, pos_no_bucket, pos_no_label1, pos_no_label2])
-
-    return pos
-
-def prep_data_IRVol(pos, params):
-    """Check data quality for IR Vol factor"""
-
-    # Check Label1
-    pos_no_label1 = pos[~pos.Label1.isin(params.IR_Tenor)].copy()
-    if len(pos_no_label1) > 0:
-        logger.info('{0} IR Vol trades have wrong Label 1'.format(len(pos_no_label1)))
-        pos_no_label1['reason'] = 'Label1'
-
-    pos = pos[pos.Label1.isin(params.IR_Tenor)].copy()
-
-    pos = pd.concat([pos, pos_no_label1])
-
-    return pos
-
-def prep_data_IR(pos, params):
-    """Check data quality for IR factor"""
-
-    # Check IR curve
-    pos_IRCurve = pos[pos.RiskType == 'Risk_IRCurve'].copy()
-    pos_IRCurve = prep_data_IRCurve(pos_IRCurve, params)
-
-    # Check IR vol and curvature
-    pos_IRVol = pos[pos.RiskType.isin(['Risk_IRVol', 'Risk_IRCV'])].copy()
-    pos_IRVol = prep_data_IRVol(pos_IRVol, params)
-
-    # Check IR inflation
-    pos_Inflation = pos[pos.RiskType == 'Risk_Inflation'].copy()
-
-    pos = pd.concat([pos_IRCurve, pos_IRVol, pos_Inflation])
-
-    return pos
-
-def prep_data_CreditQ(pos, params):
-    """Check data quality for CreditQ factor"""
-
-    # Check Bucket
-    pos_no_bucket = pos[~pos.Bucket.isin(params.CreditQ_Bucket)].copy()
-    if len(pos_no_bucket) > 0:
-        logger.info('{0} CreditQ trades have wrong Bucket'.format(len(pos_no_bucket)))
-        pos_no_bucket['reason'] = 'Bucket'
-
-    pos = pos[pos.Bucket.isin(params.CreditQ_Bucket)].copy()
-
-    # Check Label1
-    pos_no_label1 = pos[~pos.Label1.isin(params.CreditQ_Tenor)].copy()
-    if len(pos_no_label1) > 0:
-        logger.info('{0} CreditQ trades have wrong Label 1'.format(len(pos_no_label1)))
-        pos_no_label1['reason'] = 'Label1'
-
-    pos = pos[pos.Label1.isin(params.CreditQ_Tenor)].copy()
-
-    pos = pd.concat([pos, pos_no_bucket, pos_no_label1])
-
-    return pos
-
-def prep_data_CreditNonQ(pos, params):
-    """Check data quality for CreditNonQ factor"""
-
-    # Check Bucket
-    pos_no_bucket = pos[~pos.Bucket.isin(params.CreditNonQ_Bucket)].copy()
-    if len(pos_no_bucket) > 0:
-        logger.info('{0} CreditNonQ trades have wrong Bucket'.format(len(pos_no_bucket)))
-        pos_no_bucket['reason'] = 'Bucket'
-
-    pos = pos[pos.Bucket.isin(params.CreditNonQ_Bucket)].copy()
-
-    # Check Label1
-    pos_no_label1 = pos[~pos.Label1.isin(params.CreditNonQ_Tenor)].copy()
-    if len(pos_no_label1) > 0:
-        logger.info('{0} CreditNonQ trades have wrong Label 1'.format(len(pos_no_label1)))
-        pos_no_label1['reason'] = 'Label1'
-
-    pos = pos[pos.Label1.isin(params.CreditNonQ_Tenor)].copy()
-
-    pos = pd.concat([pos, pos_no_bucket, pos_no_label1])
-
-    return pos
-
-def prep_data_Equity(pos, params):
-    """Check data quality for Equity factor"""
-
-    # Check Bucket
-    pos_no_bucket = pos[~pos.Bucket.isin(params.Equity_Bucket)].copy()
-    if len(pos_no_bucket) > 0:
-        logger.info('{0} Equity trades have wrong Bucket'.format(len(pos_no_bucket)))
-        pos_no_bucket['reason'] = 'Bucket'
-
-    pos = pos[pos.Bucket.isin(params.Equity_Bucket)].copy()
-
-    pos = pd.concat([pos, pos_no_bucket])
-
-    return pos
-
-def prep_data_Commodity(pos, params):
-    """Check data quality for Commodity factor"""
-
-    # Check Bucket
-    pos_no_bucket = pos[~pos.Bucket.isin(params.Commodity_Bucket)].copy()
-    if len(pos_no_bucket) > 0:
-        logger.info('{0} Commodity trades have wrong Bucket'.format(len(pos_no_bucket)))
-        pos_no_bucket['reason'] = 'Bucket'
-
-    pos = pos[pos.Bucket.isin(params.Commodity_Bucket)].copy()
-
-    pos = pd.concat([pos, pos_no_bucket])
-
-    return pos
-
-def prep_data(pos, params):
-    """Check data quality for all risk factors"""
-
-    pos_IR = pos[pos.RiskClass == 'IR'].copy()
-    pos_IR = prep_data_IR(pos_IR, params)
-
-    pos_CreditQ = pos[pos.RiskClass == 'CreditQ'].copy()
-    pos_CreditQ = prep_data_CreditQ(pos_CreditQ, params)
-
-    pos_CreditNonQ = pos[pos.RiskClass == 'CreditNonQ'].copy()
-    pos_CreditNonQ = prep_data_CreditNonQ(pos_CreditNonQ, params)
-
-    pos_Equity = pos[pos.RiskClass == 'Equity'].copy()
-    pos_Equity = prep_data_Equity(pos_Equity, params)
-
-    pos_Commodity = pos[pos.RiskClass == 'Commodity'].copy()
-    pos_Commodity = prep_data_Commodity(pos_Commodity, params)
-
-    pos_FX = pos[pos.RiskClass == 'FX'].copy()
-
-    return pd.concat([pos_IR, pos_CreditQ, pos_CreditNonQ, pos_Equity, pos_Commodity, pos_FX])
 
 def calc_delta_margin(pos, params):
     pos_delta = pos[pos.RiskType.isin(params.Delta_Factor)].copy()
@@ -265,7 +79,7 @@ def calc_delta_margin(pos, params):
         pos_delta_margin = margin_risk_factor(pos_delta, params, delta_margin_loader)
 
     if len(pos_delta_margin) > 0:
-        pos_delta_margin_gp = pos_delta_margin.groupby(['CombinationID', 'ProductClass', 'RiskClass'])
+        pos_delta_margin_gp = pos_delta_margin.groupby(['CombinationID', 'RiskClass'])
         pos_delta_margin_gp = pos_delta_margin_gp.agg({'Margin': np.sum})
         pos_delta_margin_gp.reset_index(inplace=True)
         pos_delta_margin_gp['MarginType'] = 'Delta'
@@ -311,17 +125,16 @@ def calc_curvature_margin(pos, params):
 def margin_risk_factor(pos, params, margin_loader):
     """Calculate Delta Margin for IR Class"""
 
-    if margin_loader.margin_type() == 'Curvature':
-        pos = margin_loader.input_scaling(pos)
+    # if margin_loader.margin_type() == 'Curvature':
+    #     pos = margin_loader.input_scaling(pos)
 
     pos_delta = margin_loader.net_sensitivities(pos, params)
 
-    product_class = pos_delta.ProductClass.unique()[0]
     risk_class = pos_delta.RiskClass.unique()[0]
     risk_type = pos_delta.RiskType.unique()[0]
 
     if risk_class == 'IR':
-        group = 'Qualifier'
+        group = 'Bucket'
     elif risk_class == 'FX':
         group = 'RiskType'
     else:
@@ -337,7 +150,7 @@ def margin_risk_factor(pos, params, margin_loader):
 
     pos_delta = pos_delta_gp_all.copy()
 
-    intermediate_path = '{0}\{1}\{2}'.format(os.getcwd(), product_class, risk_class)
+    intermediate_path = '{0}\{1}'.format(os.getcwd(), risk_class)
     file_name = '{0}\{1}_margin_group.csv'.format(intermediate_path, risk_type)
 
     if margin_loader.margin_type() == 'Curvature':
@@ -360,7 +173,7 @@ def margin_risk_factor(pos, params, margin_loader):
         S = mlib.build_non_residual_S(pos_delta_non_residual, params)
 
         if risk_class != 'FX':
-            SS = np.mat(S) * np.mat(g) * np.mat(np.reshape(S, (len(S), 1)))
+            SS = np.mat(S) * np.mat(g) * np.mat(S.values.reshape((len(S), 1)))
             SS = SS.item(0)
         else:
             SS = 0
@@ -390,88 +203,51 @@ def margin_risk_factor(pos, params, margin_loader):
     if margin_loader.margin_type() == 'Curvature' and risk_class == 'IR':
         delta_margin = delta_margin * params.IR_Curvature_Margin_Scale
 
-    ret_mm = pos_delta[['CombinationID','ProductClass', 'RiskClass']].copy()
+    ret_mm = pos_delta[['CombinationID', 'RiskClass']].copy()
     ret_mm.drop_duplicates(inplace=True)
     ret_mm['Margin'] = delta_margin
 
     return ret_mm
 
-def calculate_in_product_margin(pos_gp, params):
-
-    risk_class_corr = params.Risk_Class_Corr
-
-    pos_product_margin = []
-    for product in pos_gp.ProductClass.unique():
-        logger.info('Calculate In-Product margin for {0}'.format(product))
-
-        pos_product = pos_gp[pos_gp.ProductClass == product].copy()
-
-        risk_margin = np.zeros(len(params.RiskType))
-
-        for i in range(len(params.RiskType)):
-            for j in range(len(pos_product.RiskClass)):
-                if pos_product.RiskClass.values[j] == params.RiskType[i]:
-                    risk_margin[i] = pos_product.Margin.values[j]
-                    break
-
-        product_margin = np.mat(risk_margin) * np.mat(risk_class_corr) * np.mat(np.reshape(risk_margin, (len(risk_margin), 1)))
-        product_margin = math.sqrt(product_margin.item(0))
-
-        pos_product = pos_product[['CombinationID', 'ProductClass']].copy()
-        pos_product.drop_duplicates(inplace=True)
-        pos_product['Margin'] = product_margin
-
-        pos_product_margin.append(pos_product)
-
-    if len(pos_product_margin) > 0:
-        pos_product_margin = pd.concat(pos_product_margin)
-
-    return pos_product_margin
-
-def calculate_simm(pos, params):
+def calculate_sensitivity_risk(pos, params):
 
     product_margin = []
 
-    for product in pos.ProductClass.unique():
-        for risk in pos[pos.ProductClass == product].RiskClass.unique():
-            logger.info('Calcualte SIMM for {0} and {1}'.format(product, risk))
-            pos_product = pos[(pos.ProductClass == product) & (pos.RiskClass == risk)].copy()
+    for risk in pos.RiskClass.unique():
+        logger.info('Calcualte Sensitivity Risk for {0}'.format(risk))
+        pos_risk = pos[pos.RiskClass == risk].copy()
 
-            pos_gp_delta_margin = calc_delta_margin(pos_product, params)
-            if len(pos_gp_delta_margin) > 0:
-                product_margin.append(pos_gp_delta_margin)
+        pos_gp_delta_margin = calc_delta_margin(pos_risk, params)
+        if len(pos_gp_delta_margin) > 0:
+            product_margin.append(pos_gp_delta_margin)
 
-            pos_gp_vega_margin = calc_vega_margin(pos_product, params)
-            if len(pos_gp_vega_margin) > 0:
-                product_margin.append(pos_gp_vega_margin)
+        pos_gp_vega_margin = calc_vega_margin(pos_risk, params)
+        if len(pos_gp_vega_margin) > 0:
+            product_margin.append(pos_gp_vega_margin)
 
-            pos_gp_curvature_margin = calc_curvature_margin(pos_product, params)
-            if len(pos_gp_curvature_margin) > 0:
-                product_margin.append(pos_gp_curvature_margin)
+        pos_gp_curvature_margin = calc_curvature_margin(pos_risk, params)
+        if len(pos_gp_curvature_margin) > 0:
+            product_margin.append(pos_gp_curvature_margin)
 
     product_margin = pd.concat(product_margin)
 
-    if not os.path.isfile('simm_all_margin.csv'):
-        product_margin.to_csv('simm_all_margin.csv', index=False)
+    if not os.path.isfile('sensitivity_all_margin.csv'):
+        product_margin.to_csv('sensitivity_all_margin.csv', index=False)
     else:  # else it exists so append without writing the header
-        product_margin.to_csv('simm_all_margin.csv', mode='a', header=False, index=False)
+        product_margin.to_csv('sensitivity_all_margin.csv', mode='a', header=False, index=False)
 
-    product_margin_gp = product_margin.groupby(['CombinationID', 'ProductClass', 'RiskClass'])
-    product_margin_gp = product_margin_gp.agg({'Margin': np.sum})
-    product_margin_gp.reset_index(inplace=True)
+    risk_charges = product_margin[['CombinationID']].drop_duplicates()
+    risk_charges['Risk_Charge'] = product_margin.Margin.sum()
 
-    product_margin_all = calculate_in_product_margin(product_margin_gp, params)
-
-    simm = product_margin_all[['CombinationID']].drop_duplicates()
-    simm['SIMM_Benchmark'] = product_margin_all.Margin.sum()
-
-    return simm
+    return risk_charges
 
 def generate_trade_pos(input_file, params):
 
     excl_file = pd.ExcelFile(input_file)
 
-    trades_pos = excl_file.parse('simm_input', converters={'Bucket': str, 'Label1': str, 'Label2': str, 'Amount': np.float64, 'AmountUSD': np.float64})
+    trades_pos = excl_file.parse('inputs', converters={'Qualifier': str, 'Bucket': str, 'Label1': str, 'Label2': str,
+                                                       'Label3': str, 'Stat_Value': np.float64, 'ImpliedVol': np.float64,
+                                                       'Shifted_PV_Base': np.float64, 'Raw_PV_Base': np.float64})
     trades_pos.dropna(how='all', inplace=True)
 
     # Calculate risk classification
@@ -480,18 +256,17 @@ def generate_trade_pos(input_file, params):
     trades_pos = trades_pos[trades_pos.reason == 'Good'].copy()
 
     # Check input data quality
-    trades_pos_all = prep_data(trades_pos, params)
-    trades_pos_all = pd.concat([trades_pos_all, trades_pos_no_classification])
+    trades_pos_all = pd.concat([trades_pos, trades_pos_no_classification])
     trades_pos_all.to_csv('all_trades_pos.csv', index=False)
 
     # Prepare input data
-    trades_simm = trades_pos_all[trades_pos_all.reason == 'Good'].copy()
-    trades_simm = trades_simm[['SensitivityID', 'ProductClass', 'RiskType', 'Qualifier', 'Bucket', 'Label1', 'Label2', 'AmountUSD', 'RiskClass']].copy()
-    trades_simm.AmountUSD.fillna(0, inplace=True)
+    trades_all = trades_pos_all[trades_pos_all.reason == 'Good'].copy()
+    trades_all.drop(['reason'], axis=1, inplace=True)
+    trades_all.Stat_Value.fillna(0, inplace=True)
 
-    return trades_simm
+    return trades_all
 
-def find_sentivitiy_id(gp, trades_simm):
+def find_sentivitiy_id(gp, trades_pos):
 
     case_ids = gp['SensitivityID']
 
@@ -500,11 +275,11 @@ def find_sentivitiy_id(gp, trades_simm):
         case_ids = [id.strip() for id in case_ids.split(',')]
 
         if case_ids[0] == '':
-            case_ids = trades_simm.SensitivityID.values
+            case_ids = trades_pos.SensitivityID.values
         else:
             case_all = []
             for case in case_ids:
-                case_id = trades_simm[trades_simm.SensitivityID.str.match(case + '_')]
+                case_id = trades_pos[trades_pos.SensitivityID.str.match(case + '_')]
                 case_all.append(case_id)
 
             case_all = pd.concat(case_all)
@@ -518,7 +293,7 @@ def find_sentivitiy_id(gp, trades_simm):
 
     return case_df
 
-def generate_run_cases(input_file, trades_simm):
+def generate_run_cases(input_file, trades_pos):
 
     excl_file = pd.ExcelFile(input_file)
 
@@ -537,14 +312,14 @@ def generate_run_cases(input_file, trades_simm):
     if len(run_case_all) > 0:
         run_cases_expand = []
         for index, row in run_case_all.iterrows():
-            run_case = find_sentivitiy_id(row, trades_simm)
+            run_case = find_sentivitiy_id(row, trades_pos)
             run_cases_expand.append(run_case)
 
         run_cases_expand = pd.concat(run_cases_expand)
-        run_cases_expand = pd.merge(run_cases_expand, trades_simm, how='left')
+        run_cases_expand = pd.merge(run_cases_expand, trades_pos, how='left')
 
-        invalid_sensitivities = run_cases_expand[run_cases_expand.ProductClass.isnull()].copy()
-        valid_sensitivities = run_cases_expand[run_cases_expand.ProductClass.notnull()].copy()
+        invalid_sensitivities = run_cases_expand[run_cases_expand.RiskClass.isnull()].copy()
+        valid_sensitivities = run_cases_expand[run_cases_expand.RiskClass.notnull()].copy()
 
         if len(invalid_sensitivities) > 0:
             for index, row in invalid_sensitivities.iterrows():

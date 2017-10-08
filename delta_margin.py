@@ -35,7 +35,7 @@ class DeltaMargin(object):
         risk_class = pos.RiskClass.unique()[0]
 
         if risk_class == 'IR':
-            factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'Bucket', 'Label1', 'Label2', 'RiskClass']
+            factor_group = ['CombinationID', 'RiskType', 'Bucket', 'Label1', 'Label2', 'RiskClass']
         elif risk_class == 'CreditQ':
             pos.ix[pos.Label2.isnull(), 'Label2'] = 'Non_Sec'
             factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'Bucket', 'Label1', 'Label2', 'RiskClass']
@@ -47,13 +47,13 @@ class DeltaMargin(object):
             factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'RiskClass']
 
         pos_gp = pos.groupby(factor_group)
-        pos_delta = pos_gp.agg({'AmountUSD': np.sum})
+        pos_delta = pos_gp.agg({'Stat_Value': np.sum})
         pos_delta.reset_index(inplace=True)
 
         # if there exists inflation, need to aggregate amount by each currency
         pos_inflation = pos[pos.RiskType == 'Risk_Inflation'].copy()
         if len(pos_inflation) > 0:
-            pos_inflation = pos_inflation.groupby(['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'RiskClass']).agg({'AmountUSD': np.sum})
+            pos_inflation = pos_inflation.groupby(['CombinationID', 'RiskType', 'Bucket', 'RiskClass']).agg({'AmountUSD': np.sum})
             pos_inflation.reset_index(inplace=True)
 
             pos_delta = pd.concat([pos_delta, pos_inflation])
@@ -64,8 +64,8 @@ class DeltaMargin(object):
         idx = 0
 
         if risk_class == 'IR':
-            for tenor in tenors:
-                for curve in curves:
+            for curve in curves:
+                for tenor in tenors:
                     if tenor_factor == tenor and curve_factor == curve:
                         return idx
                     else:
@@ -87,23 +87,20 @@ class DeltaMargin(object):
         if risk_class == 'IR':
             pos_inflation = pos_gp[pos_gp.RiskType == 'Risk_Inflation'].copy()
 
-            gp_curr = pos_gp.Qualifier.unique()[0]
+            # Sort curves alphabetically
+            curves = pos_gp.Label1.sort_values().unique().tolist()
 
-            curve = params.IR_Sub_Curve
-            if gp_curr == 'USD':
-                curve = params.IR_USD_Sub_Curve
-
-            s = np.zeros(len(params.IR_Tenor) * len(curve))
+            s = np.zeros(len(params.IR_Tenor) * len(curves))
             if len(pos_inflation) > 0:
-                s = np.zeros(len(params.IR_Tenor) * len(curve) + 1)
+                s = np.zeros(len(params.IR_Tenor) * len(curves) + 1)
 
             for i, row in pos_gp.iterrows():
-                idx = self.find_factor_idx(row['Label1'], row['Label2'], params.IR_Tenor, curve, risk_class)
+                idx = self.find_factor_idx(row['Label2'], row['Label1'], params.IR_Tenor, curves, risk_class)
                 if idx >= 0:
-                    s[idx] = row['AmountUSD']
+                    s[idx] = row['Stat_Value']
 
             if len(pos_inflation) > 0:
-                s[len(s) - 1] = pos_inflation.AmountUSD
+                s[len(s) - 1] = pos_inflation.Stat_Value
 
         elif risk_class == 'CreditQ':
             tenors = params.CreditQ_Tenor
@@ -156,22 +153,17 @@ class DeltaMargin(object):
         risk_class = pos_gp.RiskClass.unique()[0]
 
         if risk_class == 'IR':
-            bucket = pd.DataFrame(pos_gp.Bucket.unique(), columns=['curr_type'])
-            RW = pd.merge(bucket, params.IR_Weights, left_on=['curr_type'], right_on=['curr'], how='inner')
-            RW = RW.drop(['curr_type', 'curr'], axis=1)
-            RW = RW.as_matrix()
+            RW = params.IR_Weights
+            RW = RW.weight.tolist()
+            curves = pos_gp.Label1.unique()
 
-            gp_curr = pos_gp.Qualifier.unique()[0]
-
-            curve = params.IR_Sub_Curve
-            if gp_curr == 'USD':
-                curve = params.IR_USD_Sub_Curve
-
-            RW = np.repeat(RW, len(curve))
+            RW = RW * len(curves)
 
             pos_inflation = pos_gp[pos_gp.RiskType == 'Risk_Inflation'].copy()
             if len(pos_inflation) > 0:
                 RW = np.append(RW, params.IR_Inflation_Weights)
+
+            RW = np.array(RW)
         else:
             if risk_class == 'CreditQ':
                 weights = params.CreditQ_Weights
@@ -200,140 +192,21 @@ class DeltaMargin(object):
 
         return RW
 
-    def calculate_risk_group(self, gp, params):
-        if gp['RiskClass'] == 'IR':
-            if gp['Qualifier'] in params.IR_Low_Vol_Curr:
-                risk_group = 'Low volatility'
-            elif gp['Qualifier'] in params.IR_Reg_Vol_Less_Well_Traded_Curr:
-                risk_group = 'Regular volatility, less well-traded'
-            elif gp['Qualifier'] in params.IR_Reg_Vol_Well_Traded_Curr:
-                risk_group = 'Regular volatility, well-traded'
-            else:
-                risk_group = 'High volatility'
-
-        elif gp['RiskClass'] == 'CreditQ':
-            if gp['Bucket'] in params.CreditQ_CR_Sov_incl_Central_Banks:
-                risk_group = 'Sovereigns including central banks'
-            elif gp['Bucket'] in params.CreditQ_CR_Corp_Entities:
-                risk_group = 'Corporate entities'
-            elif gp['Bucket'] in params.CreditQ_CR_Not_Classified:
-                risk_group = 'Not classified'
-
-        elif gp['RiskClass'] == 'CreditNonQ':
-            if gp['Bucket'] in params.CreditNonQ_CR_IG:
-                risk_group = 'IG (RMBS and CMBS)'
-            elif gp['Bucket'] in params.CreditNonQ_CR_HY_Non_Rated:
-                risk_group = 'HY/Non-rated (RMBS and CMBS)'
-            elif gp['Bucket'] in params.CreditNonQ_CR_Not_Classified:
-                risk_group = 'Not classified'
-
-        elif gp['RiskClass'] == 'Equity':
-            if gp['Bucket'] in params.Equity_CR_Emerging_Large_Cap:
-                risk_group = 'Emerging Markets - Large Cap'
-            elif gp['Bucket'] in params.Equity_CR_Developed_Large_Cap:
-                risk_group = 'Developed Markets - Large Cap'
-            elif gp['Bucket'] in params.Equity_CR_Emerging_Small_Cap:
-                risk_group = 'Emerging Markets - Small Cap'
-            elif gp['Bucket'] in params.Equity_CR_Developed_Small_Cap:
-                risk_group = 'Developed Markets - Small Cap'
-            elif gp['Bucket'] in params.Equity_CR_Index_Funds_ETF:
-                risk_group = 'Indexeds, Funds, ETFs'
-            elif gp['Bucket'] in params.Equity_CR_Not_Classified:
-                risk_group = 'Not classified'
-
-        elif gp['RiskClass'] == 'Commodity':
-            if gp['Bucket'] in params.Commodity_CR_Coal:
-                risk_group = 'Coal'
-            elif gp['Bucket'] in params.Commodity_CR_Crude_Oil:
-                risk_group = 'Crude Oil'
-            elif gp['Bucket'] in params.Commodity_CR_Light_End:
-                risk_group = 'Light ends'
-            elif gp['Bucket'] in params.Commodity_CR_Middle_Distilates:
-                risk_group = 'Middle Distilates'
-            elif gp['Bucket'] in params.Commodity_CR_Heavy_Distilates:
-                risk_group = 'Heavy Distilates'
-            elif gp['Bucket'] in params.Commodity_CR_NA_Natual_Gas:
-                risk_group = 'NA Natural gas'
-            elif gp['Bucket'] in params.Commodity_CR_EU_Natual_Gas:
-                risk_group = 'EU Natual gas'
-            elif gp['Bucket'] in params.Commodity_CR_NA_Power:
-                risk_group = 'NA Power, On-Peak'
-            elif gp['Bucket'] in params.Commodity_CR_EU_Power:
-                risk_group = 'EU Power, On-Peak'
-            elif gp['Bucket'] in params.Commodity_CR_Freight:
-                risk_group = 'Freight, Dry or Wet'
-            elif gp['Bucket'] in params.Commodity_CR_Base_Metals:
-                risk_group = 'Base metals'
-            elif gp['Bucket'] in params.Commodity_CR_Precious_Metals:
-                risk_group = 'Precious Metals'
-            elif gp['Bucket'] in params.Commodity_CR_Grains:
-                risk_group = 'Grains'
-            elif gp['Bucket'] in params.Commodity_CR_Softs:
-                risk_group = 'Softs'
-            elif gp['Bucket'] in params.Commodity_CR_Livestock:
-                risk_group = 'Livestock'
-            elif gp['Bucket'] in params.Commodity_CR_Others:
-                risk_group = 'Other / Diversified Commodity Indices'
-
-        elif gp['RiskClass'] == 'FX':
-            if gp['Qualifier'] in params.FX_Significantly_Material:
-                risk_group = 'C1'
-            elif gp['Qualifier'] in params.FX_Frequently_Traded:
-                risk_group ='C2'
-            else:
-                risk_group = 'C3'
-
-        gp['Risk_Group'] = risk_group
-
-        return gp
-
-    def calculate_CR_Threshold(self, gp, params):
-
-        risk_group = gp['RiskClass'].unique()[0]
-
-        if risk_group == 'IR':
-            thrd = params.IR_CR_Thrd[params.IR_CR_Thrd.Type == 'Delta'].copy()
-
-        elif risk_group == 'CreditQ':
-            thrd = params.CreditQ_CR_Thrd[params.CreditQ_CR_Thrd.Type == 'Delta'].copy()
-
-        elif risk_group == 'CreditNonQ':
-            thrd = params.CreditNonQ_CR_Thrd[params.CreditNonQ_CR_Thrd.Type == 'Delta'].copy()
-
-        elif risk_group == 'Equity':
-            thrd = params.Equity_CR_Thrd[params.Equity_CR_Thrd.Type == 'Delta'].copy()
-
-        elif risk_group == 'Commodity':
-            thrd = params.Commodity_CR_Thrd[params.Commodity_CR_Thrd.Type == 'Delta'].copy()
-
-        elif risk_group == 'FX':
-            thrd = params.FX_CR_Thrd[params.FX_CR_Thrd.Type == 'Delta'].copy()
-
-        gp = pd.merge(gp, thrd[['Risk_Group', 'CR_THR']], how='left')
-
-        return gp
-
     def margin_risk_group(self, gp, params):
 
         risk_class = gp.RiskClass.unique()[0]
 
-        if risk_class in ['IR', 'FX']:
-            logger.info('Calculate {0} Delta Margin for {1}'.format(risk_class, gp.Qualifier.unique()))
-        else:
-            logger.info('Calculate {0} Delta Margin for {1}'.format(risk_class, gp.Bucket.unique()))
-
-        gp = gp.apply(self.calculate_risk_group, axis=1, params=params)
-        gp = self.calculate_CR_Threshold(gp, params)
+        logger.info('Calculate {0} Delta Margin for {1}'.format(risk_class, gp.Bucket.unique()))
 
         s = self.build_risk_factors(gp, params)
         RW = self.build_risk_weights(gp, params)
-        CR = mlib.build_concentration_risk(gp, params, self.margin_type())
 
-        WS = RW * s * CR
+        WS = RW * s
 
-        Corr = mlib.build_in_bucket_correlation(gp, params, self.__margin, CR)
+        Corr = mlib.build_in_bucket_correlation(gp, params, self.__margin)
 
         K = np.mat(WS) * np.mat(Corr) * np.mat(np.reshape(WS, (len(WS), 1)))
+        K = max(K, 0)
         K = math.sqrt(K.item(0))
 
         if gp.RiskType.nunique() > 1:
@@ -341,19 +214,14 @@ class DeltaMargin(object):
         else:
             risk_type = gp.RiskType.unique()[0]
 
-        ret = gp[['CombinationID', 'ProductClass', 'RiskClass']].copy()
+        ret = gp[['CombinationID', 'RiskClass']].copy()
         ret.drop_duplicates(inplace=True)
         ret['RiskType'] = risk_type
         ret['K'] = K
         ret['S'] = max(min(WS.sum(), K), -K)
 
         if risk_class == 'IR':
-            ret['CR'] = CR
-        else:
-            ret['CR'] = CR[0]
-
-        if risk_class == 'IR':
-            ret['Group'] = gp['Qualifier'].unique()[0]
+            ret['Group'] = gp['Bucket'].unique()[0]
         elif risk_class == 'FX':
             ret['Group'] = gp['RiskType'].unique()[0]
         else:

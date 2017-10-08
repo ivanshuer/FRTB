@@ -1,1 +1,2 @@
 # FRTB
+python main.py

@@ -2,38 +2,27 @@ import pandas as pd
 
 configs = pd.ExcelFile('frtb_config.xlsx')
 
-Product = ['RatesFX', 'Credit', 'Equity', 'Commodity']
+RiskClass = ['IR', 'CSR', 'CSRNonCTP', 'CSRCTP', 'Equity', 'Commodity', 'FX']
 
-RiskType = ['IR', 'CreditQ', 'CreditNonQ', 'Equity', 'Commodity', 'FX']
+IR = ['Risk_IRDelta', 'Risk_IRVega', 'Risk_Inflation', 'RiskIRCurvature']
+CSR = ['Risk_CSRDelta', 'Risk_CSRVega', 'RiskCSRCurvature']
+CSRNonCTP = ['Risk_CSRNonCTPDelta', 'Risk_CSRNonCTPVega', 'RiskCSRNonCTPCurvature']
+CSRCTP = ['Risk_CSRCTPDelta', 'Risk_CSRCTPVega', 'RiskCSRCTPCurvature']
+Equity = ['Risk_EquityDelta', 'Risk_EquityVega', 'RiskEquityCurvature']
+FX = ['Risk_FXDelta', 'Risk_FXVega', 'RiskFXCurvature']
+Commodity = ['Risk_CommodityDelta', 'Risk_CommodityVega', 'RiskCommodityCurvature']
 
-IR = ['Risk_IRCurve', 'Risk_IRVol', 'Risk_Inflation']
-CreditQ = ['Risk_CreditQ', 'Risk_CreditVol']
-CreditNonQ = ['Risk_CreditNonQ', 'Risk_CreditVolNonQ']
-Equity = ['Risk_Equity', 'Risk_EquityVol']
-FX = ['Risk_FX', 'Risk_FXVol']
-Commodity = ['Risk_Commodity', 'Risk_CommodityVol']
+Delta_Factor = ['Risk_IRDelta', 'Risk_Inflation', 'Risk_CSRDelta', 'Risk_CSRNonCTPDelta', 'Risk_CSRCTPDelta', 'Risk_EquityDelta', 'Risk_FXDelta', 'Risk_CommodityDelta']
+Vega_Factor = ['Risk_IRVega', 'Risk_CSRVega', 'Risk_CSRNonCTPVega', 'Risk_CSRCTPVega', 'Risk_EquityVega', 'RiskFXCurvature', 'Risk_CommodityVega']
+Curvature_Factor = ['RiskIRCurvature', 'RiskCSRCurvature', 'RiskCSRNonCTPCurvature', 'RiskCSRCTPCurvature', 'RiskEquityCurvature', 'RiskFXCurvature', 'RiskCommodityCurvature']
 
-Delta_Factor = ['Risk_IRCurve', 'Risk_Inflation', 'Risk_CreditQ', 'Risk_CreditNonQ', 'Risk_Equity', 'Risk_FX', 'Risk_Commodity']
-Vega_Factor = ['Risk_IRVol', 'Risk_CreditVol', 'Risk_CreditVolNonQ', 'Risk_EquityVol', 'Risk_FXVol', 'Risk_CommodityVol']
-Curvature_Factor = Vega_Factor
-#Curvature_Factor = ['Risk_IRCV', 'Risk_CreditCV', 'Risk_EquityCV', 'Risk_FXCV', 'Risk_CommodityCV']
-
-Risk_Class_Corr = configs.parse('Risk_class_correlation')
-
-IR_Bucket = ['1', '2', '3']
-IR_Tenor = ['2w', '1m', '3m', '6m', '1y', '2y', '3y', '5y', '10y', '15y', '20y', '30y']
-IR_Sub_Curve = ['OIS', 'Libor1m', 'Libor3m', 'Libor6m', 'Libor12m']
-IR_USD_Sub_Curve = IR_Sub_Curve + ['Prime']
-IR_Reg_Vol_Well_Traded_Curr = ['USD', 'EUR', 'GBP']
-IR_Reg_Vol_Less_Well_Traded_Curr = ['CHF', 'AUD', 'NZD', 'CAD', 'SEK', 'NOK', 'DKK', 'HKD', 'KRW', 'SGD', 'TWD']
-IR_Low_Vol_Curr = ['JPY']
-IR_CR_Thrd = configs.parse('IR_CR_THR')
-IR_Weights = configs.parse('IR_weights', converters={'curr': str})
-IR_Corr = configs.parse('IR_correlation')
-IR_Fai = 0.982
-IR_Gamma = 0.27
-IR_Inflation_Weights = 32
-IR_Inflation_Rho = 0.33
+IR_Tenor = ['3m', '6m', '1y', '2y', '3y', '5y', '10y', '15y', '20y', '30y']
+IR_Weights = configs.parse('IR_weights', converters={'tenor': str})
+IR_Theta = 0.03
+IR_Fai = 0.999
+IR_Gamma = 0.5
+IR_Inflation_Weights = 0.0225
+IR_Inflation_Rho = 0.4
 IR_VRW = 0.21
 IR_Curvature_Margin_Scale = 2.3
 

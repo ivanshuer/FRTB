@@ -26,38 +26,38 @@ if not len(logger.handlers):
 
 def main():
     # Setup input argument
-    parser = argparse.ArgumentParser(description='SIMM Calculation.')
-    parser.add_argument('-f', dest='input_file', type=str, required=True, help='simm input csv file')
+    parser = argparse.ArgumentParser(description='FRBT Calculation.')
+    parser.add_argument('-f', dest='input_file', type=str, required=True, help='FRBT input csv file')
     args = parser.parse_args(['-f' 'frtb_config.xlsx'])
-    #args = parser.parse_args()
+    # args = parser.parse_args()
 
     # Create output directory for product and risk class
     frtb_lib.prep_output_directory(params)
 
     # Read input file with specified data type
-    #input_file = 'simm_input_1.csv'
     input_file = args.input_file
 
-    trades_simm = frtb_lib.generate_trade_pos(input_file, params)
-    run_cases = frtb_lib.generate_run_cases(input_file, trades_simm)
+    trades_pos = frtb_lib.generate_trade_pos(input_file, params)
+    run_cases = frtb_lib.generate_run_cases(input_file, trades_pos)
 
-    # Calculate SIMM and dump output
-    simm_all = []
+    # Calculate FRTB risk charges and dump output
+    results_all = []
     if len(run_cases) > 0:
         for case in run_cases.CombinationID.unique():
             logger.info('Run test {0}'.format(case))
             run_case = run_cases[run_cases.CombinationID == case].copy()
-            simm = frtb_lib.calculate_simm(run_case, params)
-            simm_all.append(simm)
+            result = frtb_lib.calculate_sensitivity_risk(run_case, params)
+            results_all.append(result)
 
-        simm_all = pd.concat(simm_all)
-        simm_all.to_csv('simm_output.csv', index=False)
+        results_all = pd.concat(results_all)
+        results_all.to_csv('results_output.csv', index=False)
 
-        for index, row in simm_all.iterrows():
-            logger.info('{0}: Total SIMM is {1:,}'.format(row['CombinationID'], int(round(row['SIMM_Benchmark']))))
+        for index, row in results_all.iterrows():
+            # logger.info('{0}: Total Risk is {1:,}'.format(row['CombinationID'], int(round(row['SIMM_Benchmark']))))
+            logger.info('{0}: Total Risk is {1:,}'.format(row['CombinationID'], row['Risk_Charge']))
 
     else:
-        logger.info('No trade has SIMM')
+        logger.info('No trade has Risk')
 
     return
 
