@@ -39,9 +39,10 @@ def prep_output_directory(params):
 
         os.mkdir(output_path)
 
-    output_path = '{0}\all_margin.csv'.format(os.getcwd())
+    output_path = '{0}\sensitivity_all_margin.csv'.format(os.getcwd())
     if os.path.exists(output_path):
         os.remove(output_path)
+
 
 def risk_classification(trades_pos, params):
     """Risk class classification in terms of RiskType"""
@@ -97,7 +98,7 @@ def calc_vega_margin(pos, params):
         pos_vega_margin = margin_risk_factor(pos_vega, params, vega_margin_loader)
 
     if len(pos_vega_margin) > 0:
-        pos_vega_margin_gp = pos_vega_margin.groupby(['CombinationID', 'ProductClass', 'RiskClass'])
+        pos_vega_margin_gp = pos_vega_margin.groupby(['CombinationID', 'RiskClass'])
         pos_vega_margin_gp = pos_vega_margin_gp.agg({'Margin': np.sum})
         pos_vega_margin_gp.reset_index(inplace=True)
         pos_vega_margin_gp['MarginType'] = 'Vega'

@@ -43,90 +43,113 @@ def build_in_bucket_correlation(pos_gp, params, margin):
     if risk_class not in ['IR', 'FX']:
         bucket = pos_gp.Bucket.unique()[0]
 
-    if risk_class == 'IR':
+    if margin == 'Vega':
+        if risk_class == 'IR':
+            num_maturities = len(params.IR_Vega_Maturity)
+            num_residual_maturities = len(params.IR_Vega_Residual_Maturity)
 
-        num_tenors = len(params.IR_Tenor)
-        tenor_years = [convert_tenor_to_years(tenor) for tenor in params.IR_Tenor]
+            maturity_years = [convert_tenor_to_years(tenor) for tenor in params.IR_Vega_Maturity]
+            residual_maturity_years = [convert_tenor_to_years(tenor) for tenor in params.IR_Vega_Residual_Maturity]
 
-        # Same curve, diff vertex
-        rho = np.zeros((num_tenors, num_tenors))
-        for i in range(num_tenors):
-            for j in range(num_tenors):
-                rho[i, j] = max(exp(-params.IR_Theta * abs(tenor_years[i] - tenor_years[j]) / min(tenor_years[i], tenor_years[j])), 0.4)
+            rho = np.zeros((num_maturities, num_maturities))
+            for i in range(num_maturities):
+                for j in range(num_maturities):
+                    rho[i, j] = exp(-params.IR_Alpha * abs(maturity_years[i] - maturity_years[j]) / min(maturity_years[i], maturity_years[j]))
 
-        curves = pos_gp.Label1.unique()
-        fai = np.zeros((len(curves), len(curves)))
-        fai.fill(params.IR_Fai)
-        np.fill_diagonal(fai, 1)
+            fai = np.zeros((num_residual_maturities, num_residual_maturities))
+            for i in range(num_residual_maturities):
+                for j in range(num_residual_maturities):
+                    fai[i, j] = exp(-params.IR_Alpha * abs(residual_maturity_years[i] - residual_maturity_years[j]) / min(residual_maturity_years[i], residual_maturity_years[j]))
 
-        Corr = np.kron(fai, rho)
+            Corr = np.kron(rho, fai)
 
-        pos_inflation = pos_gp[pos_gp.RiskType == 'Risk_Inflation'].copy()
-        if len(pos_inflation) > 0:
-            inflation_rho = np.ones(len(curves)*len(params.IR_Tenor)) * params.IR_Inflation_Rho
-            inflation_rho_column = np.reshape(inflation_rho, (len(inflation_rho), 1))
-            Corr = np.append(Corr, inflation_rho_column, axis=1)
-
-            inflation_rho = np.append(inflation_rho, 1)
-            inflation_rho = np.reshape(inflation_rho, (1, len(inflation_rho)))
-            Corr = np.append(Corr, inflation_rho, axis=0)
+            for i in range(len(Corr)):
+                for j in range(len(Corr)):
+                    Corr[i, j] = min(Corr[i, j], 1)
     else:
-        num_qualifiers = pos_gp.Qualifier.nunique()
+        if risk_class == 'IR':
+            num_tenors = len(params.IR_Tenor)
+            tenor_years = [convert_tenor_to_years(tenor) for tenor in params.IR_Tenor]
 
-        F = np.zeros((len(CR), len(CR)))
+            # Same curve, diff vertex
+            rho = np.zeros((num_tenors, num_tenors))
+            for i in range(num_tenors):
+                for j in range(num_tenors):
+                    rho[i, j] = max(exp(-params.IR_Theta * abs(tenor_years[i] - tenor_years[j]) / min(tenor_years[i], tenor_years[j])), 0.4)
 
-        for i in range(len(CR)):
-            for j in range(len(CR)):
-                CRi = CR[i]
-                CRj = CR[j]
+            curves = pos_gp.Label1.unique()
+            fai = np.zeros((len(curves), len(curves)))
+            fai.fill(params.IR_Fai)
+            np.fill_diagonal(fai, 1)
 
-                F[i][j] = min(CRi, CRj) / max(CRi, CRj)
+            Corr = np.kron(fai, rho)
 
-        if risk_class in ['CreditQ', 'CreditNonQ']:
-            if risk_class == 'CreditQ':
-                tenors = params.CreditQ_Tenor
-                same_is_rho = params.CreditQ_Rho_Agg_Same_IS
-                diff_is_rho = params.CreditQ_Rho_Agg_Diff_IS
-                if bucket == 'Residual':
-                    same_is_rho = params.CreditQ_Rho_Res_Same_IS
-                    diff_is_rho = params.CreditQ_Rho_Res_Diff_IS
-            else:
-                tenors = params.CreditNonQ_Tenor
-                same_is_rho = params.CreditNonQ_Rho_Agg_Same_IS
-                diff_is_rho = params.CreditNonQ_Rho_Agg_Diff_IS
-                if bucket == 'Residual':
-                    same_is_rho = params.CreditNonQ_Rho_Res_Same_IS
-                    diff_is_rho = params.CreditNonQ_Rho_Res_Diff_IS
+            pos_inflation = pos_gp[pos_gp.RiskType == 'Risk_Inflation'].copy()
+            if len(pos_inflation) > 0:
+                inflation_rho = np.ones(len(curves)*len(params.IR_Tenor)) * params.IR_Inflation_Rho
+                inflation_rho_column = np.reshape(inflation_rho, (len(inflation_rho), 1))
+                Corr = np.append(Corr, inflation_rho_column, axis=1)
 
-            rho = np.ones((num_qualifiers, num_qualifiers)) * diff_is_rho
-            np.fill_diagonal(rho, same_is_rho)
+                inflation_rho = np.append(inflation_rho, 1)
+                inflation_rho = np.reshape(inflation_rho, (1, len(inflation_rho)))
+                Corr = np.append(Corr, inflation_rho, axis=0)
+        else:
+            num_qualifiers = pos_gp.Qualifier.nunique()
 
-            if risk_class == 'CreditQ' and margin == 'Delta':
-                one_mat = np.ones((len(tenors) * params.CreditQ_num_sec_type, len(tenors) * params.CreditQ_num_sec_type))
-            else:
-                one_mat = np.ones((len(tenors), len(tenors)))
-            rho = np.kron(rho, one_mat)
+            F = np.zeros((len(CR), len(CR)))
 
-        elif risk_class in ['Equity', 'Commodity']:
-            bucket_df = pd.DataFrame(pos_gp.Bucket.unique(), columns=['bucket'])
+            for i in range(len(CR)):
+                for j in range(len(CR)):
+                    CRi = CR[i]
+                    CRj = CR[j]
 
-            if risk_class == 'Equity':
-                bucket_params = params.Equity_Rho
-            elif risk_class == 'Commodity':
-                bucket_params = params.Commodity_Rho
+                    F[i][j] = min(CRi, CRj) / max(CRi, CRj)
 
-            rho = pd.merge(bucket_df, bucket_params, left_on=['bucket'], right_on=['bucket'], how='inner')
-            rho = rho['corr'][0]
+            if risk_class in ['CreditQ', 'CreditNonQ']:
+                if risk_class == 'CreditQ':
+                    tenors = params.CreditQ_Tenor
+                    same_is_rho = params.CreditQ_Rho_Agg_Same_IS
+                    diff_is_rho = params.CreditQ_Rho_Agg_Diff_IS
+                    if bucket == 'Residual':
+                        same_is_rho = params.CreditQ_Rho_Res_Same_IS
+                        diff_is_rho = params.CreditQ_Rho_Res_Diff_IS
+                else:
+                    tenors = params.CreditNonQ_Tenor
+                    same_is_rho = params.CreditNonQ_Rho_Agg_Same_IS
+                    diff_is_rho = params.CreditNonQ_Rho_Agg_Diff_IS
+                    if bucket == 'Residual':
+                        same_is_rho = params.CreditNonQ_Rho_Res_Same_IS
+                        diff_is_rho = params.CreditNonQ_Rho_Res_Diff_IS
 
-        elif risk_class == 'FX':
-            rho = params.FX_Rho
+                rho = np.ones((num_qualifiers, num_qualifiers)) * diff_is_rho
+                np.fill_diagonal(rho, same_is_rho)
 
-        if margin == 'Curvature':
-            rho = rho * rho
-            F.fill(1)
+                if risk_class == 'CreditQ' and margin == 'Delta':
+                    one_mat = np.ones((len(tenors) * params.CreditQ_num_sec_type, len(tenors) * params.CreditQ_num_sec_type))
+                else:
+                    one_mat = np.ones((len(tenors), len(tenors)))
+                rho = np.kron(rho, one_mat)
 
-        Corr = rho * F
-        np.fill_diagonal(Corr, 1)
+            elif risk_class in ['Equity', 'Commodity']:
+                bucket_df = pd.DataFrame(pos_gp.Bucket.unique(), columns=['bucket'])
+
+                if risk_class == 'Equity':
+                    bucket_params = params.Equity_Rho
+                elif risk_class == 'Commodity':
+                    bucket_params = params.Commodity_Rho
+
+                rho = pd.merge(bucket_df, bucket_params, left_on=['bucket'], right_on=['bucket'], how='inner')
+                rho = rho['corr'][0]
+
+            elif risk_class == 'FX':
+                rho = params.FX_Rho
+
+            if margin == 'Curvature':
+                rho = rho * rho
+                F.fill(1)
+
+            Corr = rho * F
+            np.fill_diagonal(Corr, 1)
 
     return Corr
 
