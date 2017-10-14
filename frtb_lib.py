@@ -9,7 +9,6 @@ import delta_margin
 import vega_margin
 import curvature_margin
 import margin_lib as mlib
-from scipy.stats import norm
 
 ##############################
 # Setup Logging Configuration
@@ -30,7 +29,7 @@ if not len(logger.handlers):
 ###############################
 
 def prep_output_directory(params):
-    """Setup output directory by product and risk class"""
+    """Setup output directory by risk class"""
 
     for prod in params.RiskClass:
         output_path = '{0}\{1}'.format(os.getcwd(), prod)
@@ -135,10 +134,7 @@ def calc_curvature_margin(pos, params):
     return pos_curvature_margin_gp
 
 def margin_risk_factor(pos, params, margin_loader):
-    """Calculate Delta Margin for IR Class"""
-
-    # if margin_loader.margin_type() == 'Curvature':
-    #     pos = margin_loader.input_scaling(pos)
+    """Calculate Sensitivity Risk Charge for IR Class"""
 
     pos_delta = margin_loader.net_sensitivities(pos, params)
 
@@ -178,34 +174,15 @@ def margin_risk_factor(pos, params, margin_loader):
                 if pos_delta.S[i] < 0 and pos_delta.S[j] < 0:
                     g[i, j] = 0
 
-    pos_delta_non_residual = pos_delta[pos_delta.Group != 'Residual'].copy()
-    pos_delta_residual = pos_delta[pos_delta.Group == 'Residual'].copy()
+    S = pos_delta.S
 
-    delta_margin = 0
-    if len(pos_delta_non_residual) > 0:
-        S = mlib.build_non_residual_S(pos_delta_non_residual, params)
+    if risk_class != 'FX':
+        SS = np.mat(S) * np.mat(g) * np.mat(S.values.reshape((len(S), 1)))
+        SS = SS.item(0)
+    else:
+        SS = 0
 
-        if risk_class != 'FX':
-            SS = np.mat(S) * np.mat(g) * np.mat(S.values.reshape((len(S), 1)))
-            SS = SS.item(0)
-        else:
-            SS = 0
-
-        delta_margin = math.sqrt(np.dot(pos_delta_non_residual.K, pos_delta_non_residual.K) + SS)
-
-    if len(pos_delta_residual) > 0:
-        K = pos_delta_residual.K.values[0]
-
-        if margin_loader.margin_type() == 'Curvature':
-            CVR_sum = pos_delta_residual.CVR_sum.values[0]
-            CVR_abs_sum = pos_delta_residual.CVR_abs_sum.values[0]
-
-            theta = min(CVR_sum / CVR_abs_sum, 0)
-            lambda_const = (pow(norm.ppf(0.995), 2) - 1) * (1 + theta) - theta
-
-            delta_margin = delta_margin + max(CVR_sum + lambda_const * K, 0)
-        else:
-            delta_margin = delta_margin + K
+    delta_margin = math.sqrt(np.dot(pos_delta.K, pos_delta.K) + SS)
 
     ret_mm = pos_delta[['CombinationID', 'RiskClass']].copy()
     ret_mm.drop_duplicates(inplace=True)
