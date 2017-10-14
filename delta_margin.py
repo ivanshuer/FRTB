@@ -192,6 +192,95 @@ class DeltaMargin(object):
 
         return RW
 
+    def build_in_bucket_correlation(self, pos_gp, params):
+        risk_class = pos_gp.RiskClass.unique()[0]
+
+        if risk_class == 'IR':
+            num_tenors = len(params.IR_Tenor)
+            tenor_years = [mlib.convert_tenor_to_years(tenor) for tenor in params.IR_Tenor]
+
+            # Same curve, diff vertex
+            rho = np.zeros((num_tenors, num_tenors))
+            for i in range(num_tenors):
+                for j in range(num_tenors):
+                    rho[i, j] = max(math.exp(-params.IR_Theta * abs(tenor_years[i] - tenor_years[j]) / min(tenor_years[i], tenor_years[j])), 0.4)
+
+            curves = pos_gp.Label1.unique()
+            fai = np.zeros((len(curves), len(curves)))
+            fai.fill(params.IR_Fai)
+            np.fill_diagonal(fai, 1)
+
+            Corr = np.kron(fai, rho)
+
+            pos_inflation = pos_gp[pos_gp.RiskType == 'Risk_Inflation'].copy()
+            if len(pos_inflation) > 0:
+                inflation_rho = np.ones(len(curves)*len(params.IR_Tenor)) * params.IR_Inflation_Rho
+                inflation_rho_column = np.reshape(inflation_rho, (len(inflation_rho), 1))
+                Corr = np.append(Corr, inflation_rho_column, axis=1)
+
+                inflation_rho = np.append(inflation_rho, 1)
+                inflation_rho = np.reshape(inflation_rho, (1, len(inflation_rho)))
+                Corr = np.append(Corr, inflation_rho, axis=0)
+        else:
+            num_qualifiers = pos_gp.Qualifier.nunique()
+
+            F = np.zeros((len(CR), len(CR)))
+
+            for i in range(len(CR)):
+                for j in range(len(CR)):
+                    CRi = CR[i]
+                    CRj = CR[j]
+
+                    F[i][j] = min(CRi, CRj) / max(CRi, CRj)
+
+            if risk_class in ['CreditQ', 'CreditNonQ']:
+                if risk_class == 'CreditQ':
+                    tenors = params.CreditQ_Tenor
+                    same_is_rho = params.CreditQ_Rho_Agg_Same_IS
+                    diff_is_rho = params.CreditQ_Rho_Agg_Diff_IS
+                    if bucket == 'Residual':
+                        same_is_rho = params.CreditQ_Rho_Res_Same_IS
+                        diff_is_rho = params.CreditQ_Rho_Res_Diff_IS
+                else:
+                    tenors = params.CreditNonQ_Tenor
+                    same_is_rho = params.CreditNonQ_Rho_Agg_Same_IS
+                    diff_is_rho = params.CreditNonQ_Rho_Agg_Diff_IS
+                    if bucket == 'Residual':
+                        same_is_rho = params.CreditNonQ_Rho_Res_Same_IS
+                        diff_is_rho = params.CreditNonQ_Rho_Res_Diff_IS
+
+                rho = np.ones((num_qualifiers, num_qualifiers)) * diff_is_rho
+                np.fill_diagonal(rho, same_is_rho)
+
+                if risk_class == 'CreditQ' and margin == 'Delta':
+                    one_mat = np.ones((len(tenors) * params.CreditQ_num_sec_type, len(tenors) * params.CreditQ_num_sec_type))
+                else:
+                    one_mat = np.ones((len(tenors), len(tenors)))
+                rho = np.kron(rho, one_mat)
+
+            elif risk_class in ['Equity', 'Commodity']:
+                bucket_df = pd.DataFrame(pos_gp.Bucket.unique(), columns=['bucket'])
+
+                if risk_class == 'Equity':
+                    bucket_params = params.Equity_Rho
+                elif risk_class == 'Commodity':
+                    bucket_params = params.Commodity_Rho
+
+                rho = pd.merge(bucket_df, bucket_params, left_on=['bucket'], right_on=['bucket'], how='inner')
+                rho = rho['corr'][0]
+
+            elif risk_class == 'FX':
+                rho = params.FX_Rho
+
+            if margin == 'Curvature':
+                rho = rho * rho
+                F.fill(1)
+
+            Corr = rho * F
+            np.fill_diagonal(Corr, 1)
+
+        return Corr
+
     def margin_risk_group(self, gp, params):
 
         risk_class = gp.RiskClass.unique()[0]
@@ -203,7 +292,7 @@ class DeltaMargin(object):
 
         WS = RW * s
 
-        Corr = mlib.build_in_bucket_correlation(gp, params, self.__margin)
+        Corr = self.build_in_bucket_correlation(gp, params)
 
         K = np.mat(WS) * np.mat(Corr) * np.mat(np.reshape(WS, (len(WS), 1)))
         K = max(K, 0)

@@ -4,7 +4,7 @@ configs = pd.ExcelFile('frtb_config.xlsx')
 
 RiskClass = ['IR', 'CSR', 'CSRNonCTP', 'CSRCTP', 'Equity', 'Commodity', 'FX']
 
-IR = ['Risk_IRDelta', 'Risk_IRVega', 'Risk_Inflation', 'RiskIRCurvature']
+IR = ['Risk_IRDelta', 'Risk_IRVega', 'Risk_Inflation', 'Risk_IRCurvature']
 CSR = ['Risk_CSRDelta', 'Risk_CSRVega', 'RiskCSRCurvature']
 CSRNonCTP = ['Risk_CSRNonCTPDelta', 'Risk_CSRNonCTPVega', 'RiskCSRNonCTPCurvature']
 CSRCTP = ['Risk_CSRCTPDelta', 'Risk_CSRCTPVega', 'RiskCSRCTPCurvature']
@@ -14,7 +14,7 @@ Commodity = ['Risk_CommodityDelta', 'Risk_CommodityVega', 'RiskCommodityCurvatur
 
 Delta_Factor = ['Risk_IRDelta', 'Risk_Inflation', 'Risk_CSRDelta', 'Risk_CSRNonCTPDelta', 'Risk_CSRCTPDelta', 'Risk_EquityDelta', 'Risk_FXDelta', 'Risk_CommodityDelta']
 Vega_Factor = ['Risk_IRVega', 'Risk_CSRVega', 'Risk_CSRNonCTPVega', 'Risk_CSRCTPVega', 'Risk_EquityVega', 'RiskFXCurvature', 'Risk_CommodityVega']
-Curvature_Factor = ['RiskIRCurvature', 'RiskCSRCurvature', 'RiskCSRNonCTPCurvature', 'RiskCSRCTPCurvature', 'RiskEquityCurvature', 'RiskFXCurvature', 'RiskCommodityCurvature']
+Curvature_Factor = ['Risk_IRCurvature', 'RiskCSRCurvature', 'RiskCSRNonCTPCurvature', 'RiskCSRCTPCurvature', 'RiskEquityCurvature', 'RiskFXCurvature', 'RiskCommodityCurvature']
 
 IR_Tenor = ['3m', '6m', '1y', '2y', '3y', '5y', '10y', '15y', '20y', '30y']
 IR_Vega_Maturity = ['6m', '1y', '3y', '5y', '10y']
@@ -28,7 +28,6 @@ IR_Inflation_Rho = 0.4
 IR_VRW = 0.55
 IR_LH = 60
 IR_Alpha = 0.01
-IR_Curvature_Margin_Scale = 2.3
 
 CreditQ_Bucket = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', 'Residual']
 CreditQ_Tenor = ['1y', '2y', '3y', '5y', '10y']

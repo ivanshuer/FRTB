@@ -29,86 +29,89 @@ class CurvatureMargin(object):
 
     def __init__(self):
         self.__margin = 'Curvature'
-        self.__vega_loader = VegaMargin()
 
     def margin_type(self):
         return self.__margin
 
-    def calc_scaling(self, gp):
-        label = gp.Label1.unique()[0]
-        [space, num, freq] = re.split('(\d+)', label)
-        num = float(num)
-
-        if freq == 'w':
-            num_days = num * 7
-        elif freq == 'm':
-            num_days = num/12 * 365
-        elif freq == 'y':
-            num_days = num * 365
-        else:
-            logger.info('wrong label 1 {0}'.format(label))
-            gp['SF'] = 1.0
-            return gp
-
-        scale = 0.5 * min(1, 14 / num_days)
-        gp['SF'] = scale
-
-        return gp
-
-    def input_scaling(self, pos):
-
-        pos = pos.groupby(['Label1']).apply(self.calc_scaling)
-        pos['AmountUSD'] = pos['AmountUSD'] * pos['SF']
-
-        return pos
-
     def net_sensitivities(self, pos, params):
-        return self.__vega_loader.net_sensitivities(pos, params)
+        risk_class = pos.RiskClass.unique()[0]
+
+        if risk_class == 'IR':
+            factor_group = ['CombinationID', 'RiskType', 'Bucket', 'Qualifier', 'RiskClass']
+        elif risk_class == 'CreditQ':
+            pos.ix[pos.Label2.isnull(), 'Label2'] = 'Non_Sec'
+            factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'Bucket', 'Label1', 'Label2', 'RiskClass']
+        elif risk_class == 'CreditNonQ':
+            factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'Bucket', 'Label1', 'RiskClass']
+        elif risk_class in ['Equity', 'Commodity']:
+            factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'Bucket', 'RiskClass']
+        elif risk_class == 'FX':
+            factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'RiskClass']
+
+        pos_gp = pos.groupby(factor_group)
+        pos_delta = pos_gp.agg({'Stat_Value': np.sum, 'Raw_PV_Base': np.average, 'Shifted_PV_Base': np.average})
+        pos_delta.reset_index(inplace=True)
+
+        return pos_delta
 
     def build_risk_factors(self, pos_gp, params):
-        return self.__vega_loader.build_risk_factors(pos_gp, params)
+        risk_class = pos_gp.RiskClass.unique()[0]
 
-    def calculate_CR_Threshold(self, gp, params):
-        return self.__vega_loader.calculate_CR_Threshold(gp, params)
+        if risk_class == 'IR':
+            RW = params.IR_Weights
+            RW = RW.weight.max()
 
-    def calculate_risk_group(self, gp, params):
-        return self.__vega_loader.calculate_risk_group(gp, params)
+            CVR_up = pos_gp[pos_gp.Qualifier == 'UP'].copy()
+            CVR_down = pos_gp[pos_gp.Qualifier == 'DOWN'].copy()
 
-    def calculate_CR_Threshold(self, gp, params):
-        return self.__vega_loader.calculate_CR_Threshold(gp, params)
+            CVR_up['CVR'] = CVR_up['Shifted_PV_Base'] - CVR_up['Raw_PV_Base'] - RW * CVR_up['Stat_Value']
+            CVR_down['CVR'] = CVR_down['Shifted_PV_Base'] - CVR_down['Raw_PV_Base'] + RW * CVR_down['Stat_Value']
+
+            CVR = -min(CVR_up['CVR'].values[0], CVR_down['CVR'].values[0])
+            s = np.ones(pos_gp.Bucket.nunique()) * CVR
+
+        return s
+
+    def build_in_bucket_correlation(self, pos_gp, params):
+        risk_class = pos_gp.RiskClass.unique()[0]
+
+        if risk_class == 'IR':
+            Corr = np.zeros((pos_gp.Bucket.nunique(), pos_gp.Bucket.nunique()))
+
+        return Corr
 
     def margin_risk_group(self, gp, params):
 
         risk_class = gp.RiskClass.unique()[0]
 
-        if risk_class in ['IR', 'FX']:
-            logger.info('Calculate {0} Curvature Margin for {1}'.format(risk_class, gp.Qualifier.unique()))
-        else:
-            logger.info('Calculate {0} Curvature Margin for {1}'.format(risk_class, gp.Bucket.unique()))
-
-        gp = gp.apply(self.calculate_risk_group, axis=1, params=params)
-        gp = self.calculate_CR_Threshold(gp, params)
+        logger.info('Calculate {0} Curvature Margin for {1}'.format(risk_class, gp.Bucket.unique()))
 
         s = self.build_risk_factors(gp, params)
-        CR = mlib.build_concentration_risk(gp, params, self.margin_type())
-
         WS = s
 
-        Corr = mlib.build_in_bucket_correlation(gp, params, self.margin_type(), CR)
+        Corr = self.build_in_bucket_correlation(gp, params)
+
+        for i in range(len(s)):
+            for j in range(len(s)):
+                if s[i] < 0 and s[j] < 0:
+                    Corr[i, j] = 0
 
         K = np.mat(WS) * np.mat(Corr) * np.mat(np.reshape(WS, (len(WS), 1)))
+        max_s = [max(x, 0) for x in s]
+        K = K + np.dot(max_s, max_s)
+        K = max(0, K)
+
         K = math.sqrt(K.item(0))
 
-        ret = gp[['CombinationID', 'ProductClass', 'RiskType', 'RiskClass']].copy()
+        ret = gp[['CombinationID', 'RiskType', 'RiskClass']].copy()
         ret.drop_duplicates(inplace=True)
         ret['K'] = K
         ret['S'] = max(min(WS.sum(), K), -K)
 
         ret['CVR_sum'] = WS.sum()
-        ret['CVR_abs_sum'] = abs(WS).sum()
 
         if risk_class == 'IR':
-            ret['Group'] = gp['Qualifier'].unique()[0]
+            ret['Group'] = gp['Bucket'].unique()[0]
         elif risk_class == 'FX':
             ret['Group'] = gp['RiskType'].unique()[0]
         else:

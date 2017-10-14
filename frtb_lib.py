@@ -112,11 +112,22 @@ def calc_curvature_margin(pos, params):
     pos_curvature_margin = []
 
     if len(pos_curvature) > 0:
+        # Aggregate Delta Sensitivities for Curvature
+        if pos.RiskClass.unique()[0] == 'IR':
+            pos_delta = pos[(pos.RiskType.isin(params.Delta_Factor)) & (~pos.RiskType.isin(['Risk_Inflation']))].copy()
+            pos_delta = pos_delta.groupby(['RiskClass', 'Bucket']).agg({'Stat_Value': np.sum})
+            pos_delta.reset_index(inplace=True)
+            pos_delta.rename(columns={'Stat_Value': 'Delta'}, inplace=True)
+
+            pos_curvature = pd.merge(pos_curvature, pos_delta, how='left')
+            pos_curvature['Stat_Value'] = pos_curvature['Delta']
+            pos_curvature.drop(['Delta'], axis=1, inplace=True)
+
         curvature_margin_loader = curvature_margin.CurvatureMargin()
         pos_curvature_margin = margin_risk_factor(pos_curvature, params, curvature_margin_loader)
 
     if len(pos_curvature_margin) > 0:
-        pos_curvature_margin_gp = pos_curvature_margin.groupby(['CombinationID', 'ProductClass', 'RiskClass'])
+        pos_curvature_margin_gp = pos_curvature_margin.groupby(['CombinationID', 'RiskClass'])
         pos_curvature_margin_gp = pos_curvature_margin_gp.agg({'Margin': np.sum})
         pos_curvature_margin_gp.reset_index(inplace=True)
         pos_curvature_margin_gp['MarginType'] = 'Curvature'
@@ -154,17 +165,18 @@ def margin_risk_factor(pos, params, margin_loader):
     intermediate_path = '{0}\{1}'.format(os.getcwd(), risk_class)
     file_name = '{0}\{1}_margin_group.csv'.format(intermediate_path, risk_type)
 
-    if margin_loader.margin_type() == 'Curvature':
-        pos_delta_output = pos_delta.ix[:, pos_delta.columns != 'CVR_sum']
-    else:
-        pos_delta_output = pos_delta
-
     if not os.path.isfile(file_name):
-        pos_delta_output.to_csv(file_name, index=False)
+        pos_delta.to_csv(file_name, index=False)
     else:  # else it exists so append without writing the header
-        pos_delta_output.to_csv(file_name, mode='a', header=False, index=False)
+        pos_delta.to_csv(file_name, mode='a', header=False, index=False)
 
     g = mlib.build_bucket_correlation(pos_delta, params, margin_loader.margin_type())
+
+    if margin_loader.margin_type() == 'Curvature':
+        for i in range(len(pos_delta)):
+            for j in range(len(pos_delta)):
+                if pos_delta.S[i] < 0 and pos_delta.S[j] < 0:
+                    g[i, j] = 0
 
     pos_delta_non_residual = pos_delta[pos_delta.Group != 'Residual'].copy()
     pos_delta_residual = pos_delta[pos_delta.Group == 'Residual'].copy()
@@ -181,12 +193,6 @@ def margin_risk_factor(pos, params, margin_loader):
 
         delta_margin = math.sqrt(np.dot(pos_delta_non_residual.K, pos_delta_non_residual.K) + SS)
 
-        if margin_loader.margin_type() == 'Curvature':
-            theta = min(pos_delta_non_residual.CVR_sum.sum() / pos_delta_non_residual.CVR_abs_sum.sum(), 0)
-            lambda_const = (pow(norm.ppf(0.995), 2) - 1) * (1 + theta) - theta
-
-            delta_margin = max(lambda_const * delta_margin + pos_delta_non_residual.CVR_sum.sum(), 0)
-
     if len(pos_delta_residual) > 0:
         K = pos_delta_residual.K.values[0]
 
@@ -200,9 +206,6 @@ def margin_risk_factor(pos, params, margin_loader):
             delta_margin = delta_margin + max(CVR_sum + lambda_const * K, 0)
         else:
             delta_margin = delta_margin + K
-
-    if margin_loader.margin_type() == 'Curvature' and risk_class == 'IR':
-        delta_margin = delta_margin * params.IR_Curvature_Margin_Scale
 
     ret_mm = pos_delta[['CombinationID', 'RiskClass']].copy()
     ret_mm.drop_duplicates(inplace=True)

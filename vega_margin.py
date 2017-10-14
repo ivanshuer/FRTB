@@ -141,6 +141,34 @@ class VegaMargin(object):
 
         return VRW
 
+    def build_in_bucket_correlation(self, pos_gp, params):
+        risk_class = pos_gp.RiskClass.unique()[0]
+
+        if risk_class == 'IR':
+            num_maturities = len(params.IR_Vega_Maturity)
+            num_residual_maturities = len(params.IR_Vega_Residual_Maturity)
+
+            maturity_years = [mlib.convert_tenor_to_years(tenor) for tenor in params.IR_Vega_Maturity]
+            residual_maturity_years = [mlib.convert_tenor_to_years(tenor) for tenor in params.IR_Vega_Residual_Maturity]
+
+            rho = np.zeros((num_maturities, num_maturities))
+            for i in range(num_maturities):
+                for j in range(num_maturities):
+                    rho[i, j] = math.exp(-params.IR_Alpha * abs(maturity_years[i] - maturity_years[j]) / min(maturity_years[i], maturity_years[j]))
+
+            fai = np.zeros((num_residual_maturities, num_residual_maturities))
+            for i in range(num_residual_maturities):
+                for j in range(num_residual_maturities):
+                    fai[i, j] = math.exp(-params.IR_Alpha * abs(residual_maturity_years[i] - residual_maturity_years[j]) / min(residual_maturity_years[i], residual_maturity_years[j]))
+
+            Corr = np.kron(rho, fai)
+
+            for i in range(len(Corr)):
+                for j in range(len(Corr)):
+                    Corr[i, j] = min(Corr[i, j], 1)
+
+        return Corr
+
     def margin_risk_group(self, gp, params):
 
         risk_class = gp.RiskClass.unique()[0]
@@ -152,7 +180,7 @@ class VegaMargin(object):
 
         WS = RW * s
 
-        Corr = mlib.build_in_bucket_correlation(gp, params, self.margin_type())
+        Corr = self.build_in_bucket_correlation(gp, params)
 
         K = np.mat(WS) * np.mat(Corr) * np.mat(np.reshape(WS, (len(WS), 1)))
         K = math.sqrt(K.item(0))
