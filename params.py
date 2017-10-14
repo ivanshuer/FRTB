@@ -5,16 +5,16 @@ configs = pd.ExcelFile('frtb_config.xlsx')
 RiskClass = ['IR', 'CSR', 'CSRNonCTP', 'CSRCTP', 'Equity', 'Commodity', 'FX']
 
 IR = ['Risk_IRDelta', 'Risk_IRVega', 'Risk_Inflation', 'Risk_IRCurvature']
-CSR = ['Risk_CSRDelta', 'Risk_CSRVega', 'RiskCSRCurvature']
-CSRNonCTP = ['Risk_CSRNonCTPDelta', 'Risk_CSRNonCTPVega', 'RiskCSRNonCTPCurvature']
-CSRCTP = ['Risk_CSRCTPDelta', 'Risk_CSRCTPVega', 'RiskCSRCTPCurvature']
-Equity = ['Risk_EquityDelta', 'Risk_EquityVega', 'RiskEquityCurvature']
-FX = ['Risk_FXDelta', 'Risk_FXVega', 'RiskFXCurvature']
-Commodity = ['Risk_CommodityDelta', 'Risk_CommodityVega', 'RiskCommodityCurvature']
+CSR = ['Risk_CSRDelta', 'Risk_CSRVega', 'Risk_CSRCurvature']
+CSRNonCTP = ['Risk_CSRNonCTPDelta', 'Risk_CSRNonCTPVega', 'Risk_CSRNonCTPCurvature']
+CSRCTP = ['Risk_CSRCTPDelta', 'Risk_CSRCTPVega', 'Risk_CSRCTPCurvature']
+Equity = ['Risk_EquityDelta', 'Risk_EquityVega', 'Risk_EquityCurvature']
+FX = ['Risk_FXDelta', 'Risk_FXVega', 'Risk_FXCurvature']
+Commodity = ['Risk_CommodityDelta', 'Risk_CommodityVega', 'Risk_CommodityCurvature']
 
 Delta_Factor = ['Risk_IRDelta', 'Risk_Inflation', 'Risk_CSRDelta', 'Risk_CSRNonCTPDelta', 'Risk_CSRCTPDelta', 'Risk_EquityDelta', 'Risk_FXDelta', 'Risk_CommodityDelta']
 Vega_Factor = ['Risk_IRVega', 'Risk_CSRVega', 'Risk_CSRNonCTPVega', 'Risk_CSRCTPVega', 'Risk_EquityVega', 'RiskFXCurvature', 'Risk_CommodityVega']
-Curvature_Factor = ['Risk_IRCurvature', 'RiskCSRCurvature', 'RiskCSRNonCTPCurvature', 'RiskCSRCTPCurvature', 'RiskEquityCurvature', 'RiskFXCurvature', 'RiskCommodityCurvature']
+Curvature_Factor = ['Risk_IRCurvature', 'Risk_CSRCurvature', 'Risk_CSRNonCTPCurvature', 'Risk_CSRCTPCurvature', 'Risk_EquityCurvature', 'Risk_FXCurvature', 'Risk_CommodityCurvature']
 
 IR_Tenor = ['3m', '6m', '1y', '2y', '3y', '5y', '10y', '15y', '20y', '30y']
 IR_Vega_Maturity = ['6m', '1y', '3y', '5y', '10y']
