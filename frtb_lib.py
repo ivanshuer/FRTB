@@ -136,17 +136,15 @@ def calc_curvature_margin(pos, params):
 def margin_risk_factor(pos, params, margin_loader):
     """Calculate Sensitivity Risk Charge for IR Class"""
 
+    risk_class = pos.RiskClass.unique()[0]
+    risk_type = pos.RiskType.unique()[0]
+
+    if risk_class == 'FX':
+        pos = pos.apply(mlib.change_FX_ticker_order, axis=1)
+
     pos_delta = margin_loader.net_sensitivities(pos, params)
 
-    risk_class = pos_delta.RiskClass.unique()[0]
-    risk_type = pos_delta.RiskType.unique()[0]
-
-    if risk_class == 'IR':
-        group = 'Bucket'
-    elif risk_class == 'FX':
-        group = 'RiskType'
-    else:
-        group = 'Bucket'
+    group = 'Bucket'
 
     pos_delta_gp_all = []
     for gp in pos_delta[group].sort_values().unique():

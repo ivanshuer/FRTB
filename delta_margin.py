@@ -44,7 +44,7 @@ class DeltaMargin(object):
         elif risk_class in ['Equity', 'Commodity']:
             factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'Bucket', 'RiskClass']
         elif risk_class == 'FX':
-            factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'RiskClass']
+            factor_group = ['CombinationID', 'RiskType', 'Bucket', 'RiskClass']
 
         pos_gp = pos.groupby(factor_group)
         pos_delta = pos_gp.agg({'Stat_Value': np.sum})
@@ -101,6 +101,8 @@ class DeltaMargin(object):
 
             if len(pos_inflation) > 0:
                 s[len(s) - 1] = pos_inflation.Stat_Value
+        elif risk_class == 'FX':
+            s = np.ones(pos_gp.Bucket.nunique()) * pos_gp.Stat_Value[0]
 
         elif risk_class == 'CreditQ':
             tenors = params.CreditQ_Tenor
@@ -164,6 +166,8 @@ class DeltaMargin(object):
                 RW = np.append(RW, params.IR_Inflation_Weights)
 
             RW = np.array(RW)
+        elif risk_class == 'FX':
+            RW = params.FX_Weights
         else:
             if risk_class == 'CreditQ':
                 weights = params.CreditQ_Weights
@@ -176,9 +180,6 @@ class DeltaMargin(object):
                 num_factors = pos_gp.Qualifier.nunique()
             elif risk_class == 'Commodity':
                 weights = params.Commodity_Weights
-                num_factors = pos_gp.Qualifier.nunique()
-            elif risk_class == 'FX':
-                weights = params.FX_Weights
                 num_factors = pos_gp.Qualifier.nunique()
 
             if risk_class != 'FX':
@@ -221,6 +222,8 @@ class DeltaMargin(object):
                 inflation_rho = np.append(inflation_rho, 1)
                 inflation_rho = np.reshape(inflation_rho, (1, len(inflation_rho)))
                 Corr = np.append(Corr, inflation_rho, axis=0)
+        elif risk_class == 'FX':
+            Corr = np.ones((pos_gp.Bucket.nunique(), pos_gp.Bucket.nunique()))
         else:
             num_qualifiers = pos_gp.Qualifier.nunique()
 
@@ -269,9 +272,6 @@ class DeltaMargin(object):
                 rho = pd.merge(bucket_df, bucket_params, left_on=['bucket'], right_on=['bucket'], how='inner')
                 rho = rho['corr'][0]
 
-            elif risk_class == 'FX':
-                rho = params.FX_Rho
-
             if margin == 'Curvature':
                 rho = rho * rho
                 F.fill(1)
@@ -309,13 +309,7 @@ class DeltaMargin(object):
         ret['K'] = K
         ret['S'] = WS.sum()
         ret['S_alt'] = max(min(WS.sum(), K), -K)
-
-        if risk_class == 'IR':
-            ret['Group'] = gp['Bucket'].unique()[0]
-        elif risk_class == 'FX':
-            ret['Group'] = gp['RiskType'].unique()[0]
-        else:
-            ret['Group'] = gp['Bucket'].unique()[0]
+        ret['Group'] = gp['Bucket'].unique()[0]
 
         return ret
 

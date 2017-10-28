@@ -32,17 +32,6 @@ class VegaMargin(object):
     def margin_type(self):
         return self.__margin
 
-    def change_FX_ticker_order(self, gp):
-        curr1 = gp['Qualifier'][0:3]
-        curr2 = gp['Qualifier'][3:6]
-
-        curr_pair = set([curr1, curr2])
-        curr_pair = "".join(curr_pair)
-
-        gp['Qualifier'] = curr_pair
-
-        return gp
-
     def net_sensitivities(self, pos, params):
         risk_class = pos.RiskClass.unique()[0]
 
@@ -62,7 +51,6 @@ class VegaMargin(object):
         if risk_class == 'IR':
             factor_group = ['CombinationID', 'RiskType', 'Bucket', 'Label2', 'Label3', 'RiskClass']
         elif risk_class == 'FX':
-            pos = pos.apply(self.change_FX_ticker_order, axis=1)
             factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'Label1', 'RiskClass']
         elif risk_class in ['CreditQ', 'CreditNonQ']:
             factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'Bucket', 'Label1', 'RiskClass']

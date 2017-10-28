@@ -97,10 +97,7 @@ Commodity_CR_Thrd = configs.parse('Commodity_CR_THR')
 Commodity_VRW = 0.36
 
 FX_Tenor = ['2w', '1m', '3m', '6m', '1y', '2y', '3y', '5y', '10y', '15y', '20y', '30y']
-FX_Weights = 7.9
-FX_Rho = 0.5
+FX_Weights = 0.3
+FX_Gamma = 0.6
 FX_VRW = 0.21
-FX_Significantly_Material = ['USD', 'EUR', 'JPY', 'GBP', 'AUD', 'CHF', 'CAD']
-FX_Frequently_Traded = ['BRL', 'CNY', 'HKD', 'INR', 'KRW', 'MXN', 'NOK', 'NZD', 'RUB', 'SEK', 'SGD', 'TRY', 'ZAR']
-FX_CR_Thrd = configs.parse('FX_CR_THR')
 

@@ -37,6 +37,18 @@ def convert_tenor_to_years(tenor):
 
     return years
 
+def change_FX_ticker_order(gp):
+    curr1 = gp['Bucket'][0:3]
+    curr2 = gp['Bucket'][3:6]
+
+    curr_pair = [curr1, curr2]
+    curr_pair.sort()
+    curr_pair = "".join(curr_pair)
+
+    gp['Bucket'] = curr_pair
+
+    return gp
+
 def build_bucket_correlation(pos_delta, params, margin):
     risk_class = pos_delta.RiskClass.unique()[0]
 
@@ -45,6 +57,10 @@ def build_bucket_correlation(pos_delta, params, margin):
     if risk_class == 'IR':
         all_curr = pos_delta.Group.unique()
         g = np.ones((len(all_curr), len(all_curr)))
+        g.fill(params.IR_Gamma)
+        np.fill_diagonal(g, 1)
+    elif risk_class == 'FX':
+        g = np.ones((pos_delta.Group.nunique(), pos_delta.Group.nunique()))
         g.fill(params.IR_Gamma)
         np.fill_diagonal(g, 1)
     elif risk_class == 'CreditQ':
