@@ -45,13 +45,11 @@ class VegaMargin(object):
             pos = pd.merge(pos, params.Commodity_Weights, left_on=['Bucket'], right_on=['bucket'], how='inner')
             pos['AmountUSD'] = pos['AmountUSD'] * pos['weight'] * math.sqrt(365.0 / 14) / norm.ppf(0.99)
             pos.drop(['bucket', 'weight'], axis=1, inplace=True)
-        elif risk_class == 'FX':
-            pos['AmountUSD'] = pos['AmountUSD'] * params.FX_Weights * math.sqrt(365.0 / 14) / norm.ppf(0.99)
 
         if risk_class == 'IR':
             factor_group = ['CombinationID', 'RiskType', 'Bucket', 'Label2', 'Label3', 'RiskClass']
         elif risk_class == 'FX':
-            factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'Label1', 'RiskClass']
+            factor_group = ['CombinationID', 'RiskType', 'Bucket', 'Label2', 'RiskClass']
         elif risk_class in ['CreditQ', 'CreditNonQ']:
             factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'Bucket', 'Label1', 'RiskClass']
         elif risk_class in ['Equity', 'Commodity']:
@@ -67,8 +65,14 @@ class VegaMargin(object):
         idx = 0
 
         for maturity in maturities:
-            for residual_maturity in residual_maturities:
-                if maturity_factor == maturity and residual_maturity_factor == residual_maturity:
+            if len(residual_maturities) > 0:
+                for residual_maturity in residual_maturities:
+                    if maturity_factor == maturity and residual_maturity_factor == residual_maturity:
+                        return idx
+                    else:
+                        idx = idx + 1
+            else:
+                if maturity_factor == maturity:
                     return idx
                 else:
                     idx = idx + 1
@@ -86,6 +90,14 @@ class VegaMargin(object):
                 idx = self.find_factor_idx(row['Label2'], row['Label3'], params.IR_Vega_Maturity, params.IR_Vega_Residual_Maturity)
                 if idx >= 0:
                     s[idx] = row['Stat_Value']
+        elif risk_class == 'FX':
+            s = np.zeros(len(params.FX_Vega_Maturity))
+
+            for i, row in pos_gp.iterrows():
+                idx = self.find_factor_idx(row['Label2'], [], params.FX_Vega_Maturity, [])
+                if idx >= 0:
+                    s[idx] = row['Stat_Value']
+
         elif risk_class in ['CreditQ', 'CreditNonQ']:
             if risk_class == 'CreditQ':
                 tenors = params.CreditQ_Tenor
@@ -123,9 +135,9 @@ class VegaMargin(object):
         elif risk_class == 'Commodity':
             VRW = params.Commodity_VRW
         elif risk_class == 'FX':
-            VRW = params.FX_VRW
+            LH = params.FX_LH
 
-        VRW = min(params.IR_VRW * math.sqrt(LH) / math.sqrt(10), 1)
+        VRW = min(params.Vega_VRW * math.sqrt(LH) / math.sqrt(10), 1)
 
         return VRW
 
@@ -142,7 +154,7 @@ class VegaMargin(object):
             rho = np.zeros((num_maturities, num_maturities))
             for i in range(num_maturities):
                 for j in range(num_maturities):
-                    rho[i, j] = math.exp(-params.IR_Alpha * abs(maturity_years[i] - maturity_years[j]) / min(maturity_years[i], maturity_years[j]))
+                    rho[i, j] = math.exp(-params.Vega_Alpha * abs(maturity_years[i] - maturity_years[j]) / min(maturity_years[i], maturity_years[j]))
 
             fai = np.zeros((num_residual_maturities, num_residual_maturities))
             for i in range(num_residual_maturities):
@@ -150,10 +162,23 @@ class VegaMargin(object):
                     fai[i, j] = math.exp(-params.IR_Alpha * abs(residual_maturity_years[i] - residual_maturity_years[j]) / min(residual_maturity_years[i], residual_maturity_years[j]))
 
             Corr = np.kron(rho, fai)
+        elif risk_class == 'FX':
+            num_maturities = len(params.FX_Vega_Maturity)
 
-            for i in range(len(Corr)):
-                for j in range(len(Corr)):
-                    Corr[i, j] = min(Corr[i, j], 1)
+            maturity_years = [mlib.convert_tenor_to_years(tenor) for tenor in params.FX_Vega_Maturity]
+
+            rho = np.zeros((num_maturities, num_maturities))
+            for i in range(num_maturities):
+                for j in range(num_maturities):
+                    rho[i, j] = math.exp(-params.Vega_Alpha * abs(maturity_years[i] - maturity_years[j]) / min(maturity_years[i], maturity_years[j]))
+
+            fai = np.ones((pos_gp.Bucket.nunique(), pos_gp.Bucket.nunique()))
+
+            Corr = np.kron(fai, rho)
+
+        for i in range(len(Corr)):
+            for j in range(len(Corr)):
+                Corr[i, j] = min(Corr[i, j], 1)
 
         return Corr
 
@@ -178,13 +203,8 @@ class VegaMargin(object):
         ret.drop_duplicates(inplace=True)
         ret['K'] = K
         ret['S'] = WS.sum()
-        ret['S_lat'] = max(min(WS.sum(), K), -K)
+        ret['S_alt'] = max(min(WS.sum(), K), -K)
 
-        if risk_class == 'IR':
-            ret['Group'] = gp['Bucket'].unique()[0]
-        elif risk_class == 'FX':
-            ret['Group'] = gp['RiskType'].unique()[0]
-        else:
-            ret['Group'] = gp['Bucket'].unique()[0]
+        ret['Group'] = gp['Bucket'].unique()[0]
 
         return ret

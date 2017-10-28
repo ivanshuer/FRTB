@@ -30,9 +30,9 @@ def convert_tenor_to_years(tenor):
     freq = tenor[re.search('\D', tenor).start():]
     unit = float(tenor[:re.search('\D', tenor).start()])
 
-    if freq == 'm':
+    if freq == 'M':
         years = unit / 12
-    elif freq == 'y':
+    elif freq == 'Y':
         years = unit
 
     return years
@@ -61,7 +61,7 @@ def build_bucket_correlation(pos_delta, params, margin):
         np.fill_diagonal(g, 1)
     elif risk_class == 'FX':
         g = np.ones((pos_delta.Group.nunique(), pos_delta.Group.nunique()))
-        g.fill(params.IR_Gamma)
+        g.fill(params.FX_Gamma)
         np.fill_diagonal(g, 1)
     elif risk_class == 'CreditQ':
         g = params.CreditQ_Corr

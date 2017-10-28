@@ -13,21 +13,22 @@ FX = ['Risk_FXDelta', 'Risk_FXVega', 'Risk_FXCurvature']
 Commodity = ['Risk_CommodityDelta', 'Risk_CommodityVega', 'Risk_CommodityCurvature']
 
 Delta_Factor = ['Risk_IRDelta', 'Risk_Inflation', 'Risk_CSRDelta', 'Risk_CSRNonCTPDelta', 'Risk_CSRCTPDelta', 'Risk_EquityDelta', 'Risk_FXDelta', 'Risk_CommodityDelta']
-Vega_Factor = ['Risk_IRVega', 'Risk_CSRVega', 'Risk_CSRNonCTPVega', 'Risk_CSRCTPVega', 'Risk_EquityVega', 'RiskFXCurvature', 'Risk_CommodityVega']
+Vega_Factor = ['Risk_IRVega', 'Risk_CSRVega', 'Risk_CSRNonCTPVega', 'Risk_CSRCTPVega', 'Risk_EquityVega', 'Risk_FXVega', 'Risk_CommodityVega']
 Curvature_Factor = ['Risk_IRCurvature', 'Risk_CSRCurvature', 'Risk_CSRNonCTPCurvature', 'Risk_CSRCTPCurvature', 'Risk_EquityCurvature', 'Risk_FXCurvature', 'Risk_CommodityCurvature']
 
-IR_Tenor = ['3m', '6m', '1y', '2y', '3y', '5y', '10y', '15y', '20y', '30y']
-IR_Vega_Maturity = ['6m', '1y', '3y', '5y', '10y']
-IR_Vega_Residual_Maturity = ['6m', '1y', '3y', '5y', '10y']
+Vega_VRW = 0.55
+Vega_Alpha = 0.01
+
+IR_Tenor = ['3M', '6M', '1Y', '2Y', '3Y', '5Y', '10Y', '15Y', '20Y', '30Y']
+IR_Vega_Maturity = ['6M', '1Y', '3Y', '5Y', '10Y']
+IR_Vega_Residual_Maturity = ['6M', '1Y', '3Y', '5Y', '10Y']
 IR_Weights = configs.parse('IR_weights', converters={'tenor': str})
 IR_Theta = 0.03
 IR_Fai = 0.999
 IR_Gamma = 0.5
 IR_Inflation_Weights = 0.0225
 IR_Inflation_Rho = 0.4
-IR_VRW = 0.55
 IR_LH = 60
-IR_Alpha = 0.01
 
 CreditQ_Bucket = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', 'Residual']
 CreditQ_Tenor = ['1y', '2y', '3y', '5y', '10y']
@@ -96,8 +97,8 @@ Commodity_Corr = configs.parse('Commodity_correlation')
 Commodity_CR_Thrd = configs.parse('Commodity_CR_THR')
 Commodity_VRW = 0.36
 
-FX_Tenor = ['2w', '1m', '3m', '6m', '1y', '2y', '3y', '5y', '10y', '15y', '20y', '30y']
+FX_Vega_Maturity = ['6M', '1Y', '3Y', '5Y', '10Y']
 FX_Weights = 0.3
 FX_Gamma = 0.6
-FX_VRW = 0.21
+FX_LH = 40
 
