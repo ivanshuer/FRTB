@@ -295,8 +295,8 @@ class DeltaMargin(object):
         Corr = self.build_in_bucket_correlation(gp, params)
 
         K = np.mat(WS) * np.mat(Corr) * np.mat(np.reshape(WS, (len(WS), 1)))
-        K = max(K, 0)
-        K = math.sqrt(K.item(0))
+        K = max(K.item(0), 0)
+        K = math.sqrt(K)
 
         if gp.RiskType.nunique() > 1:
             risk_type = '_'.join(gp.RiskType.unique())
@@ -307,7 +307,8 @@ class DeltaMargin(object):
         ret.drop_duplicates(inplace=True)
         ret['RiskType'] = risk_type
         ret['K'] = K
-        ret['S'] = max(min(WS.sum(), K), -K)
+        ret['S'] = WS.sum()
+        ret['S_alt'] = max(min(WS.sum(), K), -K)
 
         if risk_class == 'IR':
             ret['Group'] = gp['Bucket'].unique()[0]

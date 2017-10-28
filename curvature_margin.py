@@ -99,16 +99,15 @@ class CurvatureMargin(object):
         K = np.mat(WS) * np.mat(Corr) * np.mat(np.reshape(WS, (len(WS), 1)))
         max_s = [max(x, 0) for x in s]
         K = K + np.dot(max_s, max_s)
-        K = max(0, K)
+        K = max(0, K.item(0))
 
-        K = math.sqrt(K.item(0))
+        K = math.sqrt(K)
 
         ret = gp[['CombinationID', 'RiskType', 'RiskClass']].copy()
         ret.drop_duplicates(inplace=True)
         ret['K'] = K
-        ret['S'] = max(min(WS.sum(), K), -K)
-
-        ret['CVR_sum'] = WS.sum()
+        ret['S'] = WS.sum()
+        ret['S_alt'] = max(min(WS.sum(), K), -K)
 
         if risk_class == 'IR':
             ret['Group'] = gp['Bucket'].unique()[0]

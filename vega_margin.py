@@ -183,12 +183,14 @@ class VegaMargin(object):
         Corr = self.build_in_bucket_correlation(gp, params)
 
         K = np.mat(WS) * np.mat(Corr) * np.mat(np.reshape(WS, (len(WS), 1)))
-        K = math.sqrt(K.item(0))
+        K = max(K.item(0), 0)
+        K = math.sqrt(K)
 
         ret = gp[['CombinationID', 'RiskType', 'RiskClass']].copy()
         ret.drop_duplicates(inplace=True)
         ret['K'] = K
-        ret['S'] = max(min(WS.sum(), K), -K)
+        ret['S'] = WS.sum()
+        ret['S_lat'] = max(min(WS.sum(), K), -K)
 
         if risk_class == 'IR':
             ret['Group'] = gp['Bucket'].unique()[0]

@@ -175,14 +175,20 @@ def margin_risk_factor(pos, params, margin_loader):
                     g[i, j] = 0
 
     S = pos_delta.S
+    S_alt = pos_delta.S_alt
 
-    if risk_class != 'FX':
-        SS = np.mat(S) * np.mat(g) * np.mat(S.values.reshape((len(S), 1)))
-        SS = SS.item(0)
+    SS = np.mat(S) * np.mat(g) * np.mat(S.values.reshape((len(S), 1)))
+    SS = SS.item(0)
+
+    SS_alt = np.mat(S_alt) * np.mat(g) * np.mat(S_alt.values.reshape((len(S_alt), 1)))
+    SS_alt = SS_alt.item(0)
+
+    if np.dot(pos_delta.K, pos_delta.K) + SS >= 0:
+        risk_charge_squared = np.dot(pos_delta.K, pos_delta.K) + SS
     else:
-        SS = 0
+        risk_charge_squared = np.dot(pos_delta.K, pos_delta.K) + SS_alt
 
-    delta_margin = math.sqrt(np.dot(pos_delta.K, pos_delta.K) + SS)
+    delta_margin = math.sqrt(risk_charge_squared)
 
     ret_mm = pos_delta[['CombinationID', 'RiskClass']].copy()
     ret_mm.drop_duplicates(inplace=True)
