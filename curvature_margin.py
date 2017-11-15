@@ -49,7 +49,7 @@ class CurvatureMargin(object):
             factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'RiskClass']
 
         pos_gp = pos.groupby(factor_group)
-        pos_delta = pos_gp.agg({'Stat_Value': np.sum, 'Raw_PV_Base': np.average, 'Shifted_PV_Base': np.average})
+        pos_delta = pos_gp.agg({'Stat_Value': np.sum, 'Raw_PV_Base': np.sum, 'Shifted_PV_Base': np.sum})
         pos_delta.reset_index(inplace=True)
 
         return pos_delta

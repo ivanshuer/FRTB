@@ -114,7 +114,7 @@ def calc_curvature_margin(pos, params):
         # Aggregate Delta Sensitivities for Curvature
         if pos.RiskClass.unique()[0] == 'IR':
             pos_delta = pos[(pos.RiskType.isin(params.Delta_Factor)) & (~pos.RiskType.isin(['Risk_Inflation']))].copy()
-            pos_delta = pos_delta.groupby(['RiskClass', 'Bucket']).agg({'Stat_Value': np.sum})
+            pos_delta = pos_delta.groupby(['RiskClass', 'Bucket', 'security_id']).agg({'Stat_Value': np.sum})
             pos_delta.reset_index(inplace=True)
             pos_delta.rename(columns={'Stat_Value': 'Delta'}, inplace=True)
 
@@ -230,8 +230,9 @@ def generate_trade_pos(input_file, params):
 
     excl_file = pd.ExcelFile(input_file)
 
-    trades_pos = excl_file.parse('inputs', converters={'Qualifier': str, 'Bucket': str, 'Label1': str, 'Label2': str,
-                                                       'Label3': str, 'Stat_Value': np.float64, 'ImpliedVol': np.float64,
+    trades_pos = excl_file.parse('inputs', converters={'security_id': str, 'Qualifier': str, 'Bucket': str,
+                                                       'Label1': str, 'Label2': str, 'Label3': str,
+                                                       'Stat_Value': np.float64, 'ImpliedVol': np.float64,
                                                        'Shifted_PV_Base': np.float64, 'Raw_PV_Base': np.float64})
     trades_pos.dropna(how='all', inplace=True)
 
