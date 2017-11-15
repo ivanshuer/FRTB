@@ -102,7 +102,7 @@ class DeltaMargin(object):
             if len(pos_inflation) > 0:
                 s[len(s) - 1] = pos_inflation.Stat_Value
         elif risk_class == 'FX':
-            s = np.ones(pos_gp.Bucket.nunique()) * pos_gp.Stat_Value[0]
+            s = np.ones(pos_gp.Bucket.nunique()) * pos_gp.Stat_Value.values[0]
 
         elif risk_class == 'CreditQ':
             tenors = params.CreditQ_Tenor
