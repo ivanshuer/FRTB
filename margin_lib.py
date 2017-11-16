@@ -66,16 +66,17 @@ def build_bucket_correlation(pos_delta, params, margin):
     elif risk_class == 'CSR':
         g_sector = params.CSR_Sector_Corr
 
-        g_rating = np.ones((len(params.CSR_Bucket),len(params.CSR_Bucket)))
-        for i in range(len(params.CSR_Bucket)):
-            for j in range(len(params.CSR_Bucket)):
-                if (params.CSR_Bucket[i] in params.CSR_IG and params.CSR_Bucket[j] in params.CSR_HY) or \
-                        (params.CSR_Bucket[i] in params.CSR_HY and params.CSR_Bucket[j] in params.CSR_IG):
+        CSR_buckets = params.CSR_IG + params.CSR_HY
+        g_rating = np.ones((len(CSR_buckets),len(CSR_buckets)))
+        for i in range(len(CSR_buckets)):
+            for j in range(len(CSR_buckets)):
+                if (CSR_buckets[i] in params.CSR_IG and CSR_buckets[j] in params.CSR_HY) or \
+                        (CSR_buckets[i] in params.CSR_HY and CSR_buckets[j] in params.CSR_IG):
                     g_rating[i, j] = params.CSR_Rho_Rating
 
         g = g_rating * g_sector
-        g.columns = params.CSR_Bucket
-        g.index = params.CSR_Bucket
+        g.columns = CSR_buckets
+        g.index = CSR_buckets
         buckets = pos_delta.Group.unique()
         g = g.ix[buckets, buckets]
 
