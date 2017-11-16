@@ -164,32 +164,49 @@ def margin_risk_factor(pos, params, margin_loader):
     else:  # else it exists so append without writing the header
         pos_delta.to_csv(file_name, mode='a', header=False, index=False)
 
-    g = mlib.build_bucket_correlation(pos_delta, params, margin_loader.margin_type())
-
-    if margin_loader.margin_type() == 'Curvature':
-        for i in range(len(pos_delta)):
-            for j in range(len(pos_delta)):
-                if pos_delta.S[i] < 0 and pos_delta.S[j] < 0:
-                    g[i, j] = 0
-
-    S = pos_delta.S
-    S_alt = pos_delta.S_alt
-
-    SS = np.mat(S) * np.mat(g) * np.mat(S.values.reshape((len(S), 1)))
-    SS = SS.item(0)
-
-    SS_alt = np.mat(S_alt) * np.mat(g) * np.mat(S_alt.values.reshape((len(S_alt), 1)))
-    SS_alt = SS_alt.item(0)
-
-    if np.dot(pos_delta.K, pos_delta.K) + SS >= 0:
-        risk_charge_squared = np.dot(pos_delta.K, pos_delta.K) + SS
-    else:
-        risk_charge_squared = np.dot(pos_delta.K, pos_delta.K) + SS_alt
-
-    delta_margin = math.sqrt(risk_charge_squared)
-
     ret_mm = pos_delta[['CombinationID', 'RiskClass']].copy()
     ret_mm.drop_duplicates(inplace=True)
+
+    if risk_class in ['IR', 'FX']:
+        pos_delta_other = []
+    else:
+        if risk_class == 'CSR':
+            other_buckets = params.CSR_Others
+
+        pos_delta_other = pos_delta[pos_delta.Group.isin(other_buckets)].copy()
+        pos_delta = pos_delta[~pos_delta.Group.isin(other_buckets)].copy()
+
+    delta_margin = 0
+
+    if len(pos_delta) > 0:
+
+        g = mlib.build_bucket_correlation(pos_delta, params, margin_loader.margin_type())
+
+        if margin_loader.margin_type() == 'Curvature':
+            for i in range(len(pos_delta)):
+                for j in range(len(pos_delta)):
+                    if pos_delta.S[i] < 0 and pos_delta.S[j] < 0:
+                        g[i, j] = 0
+
+        S = pos_delta.S
+        S_alt = pos_delta.S_alt
+
+        SS = np.mat(S) * np.mat(g) * np.mat(S.values.reshape((len(S), 1)))
+        SS = SS.item(0)
+
+        SS_alt = np.mat(S_alt) * np.mat(g) * np.mat(S_alt.values.reshape((len(S_alt), 1)))
+        SS_alt = SS_alt.item(0)
+
+        if np.dot(pos_delta.K, pos_delta.K) + SS >= 0:
+            risk_charge_squared = np.dot(pos_delta.K, pos_delta.K) + SS
+        else:
+            risk_charge_squared = np.dot(pos_delta.K, pos_delta.K) + SS_alt
+
+        delta_margin = math.sqrt(risk_charge_squared)
+
+    if len(pos_delta_other) > 0:
+        delta_margin += pos_delta_other.K.sum()
+
     ret_mm['Margin'] = delta_margin
 
     return ret_mm
@@ -230,8 +247,8 @@ def generate_trade_pos(input_file, params):
 
     excl_file = pd.ExcelFile(input_file)
 
-    trades_pos = excl_file.parse('inputs', converters={'security_id': str, 'Qualifier': str, 'Bucket': str,
-                                                       'Label1': str, 'Label2': str, 'Label3': str,
+    trades_pos = excl_file.parse('inputs', converters={'security_id': str, 'issuer_id': str, 'Qualifier': str,
+                                                       'Bucket': str, 'Label1': str, 'Label2': str, 'Label3': str,
                                                        'Stat_Value': np.float64, 'ImpliedVol': np.float64,
                                                        'Shifted_PV_Base': np.float64, 'Raw_PV_Base': np.float64})
     trades_pos.dropna(how='all', inplace=True)

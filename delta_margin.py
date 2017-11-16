@@ -36,9 +36,8 @@ class DeltaMargin(object):
 
         if risk_class == 'IR':
             factor_group = ['CombinationID', 'RiskType', 'Bucket', 'Label1', 'Label2', 'RiskClass']
-        elif risk_class == 'CreditQ':
-            pos.ix[pos.Label2.isnull(), 'Label2'] = 'Non_Sec'
-            factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'Bucket', 'Label1', 'Label2', 'RiskClass']
+        elif risk_class == 'CSR':
+            factor_group = ['CombinationID', 'RiskType', 'Bucket', 'issuer_id', 'Label1', 'Label2', 'RiskClass']
         elif risk_class == 'CreditNonQ':
             factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'Bucket', 'Label1', 'RiskClass']
         elif risk_class in ['Equity', 'Commodity']:
@@ -63,13 +62,14 @@ class DeltaMargin(object):
     def find_factor_idx(self, tenor_factor, curve_factor, tenors, curves, risk_class):
         idx = 0
 
-        if risk_class == 'IR':
+        if risk_class in ['IR', 'CSR']:
             for curve in curves:
                 for tenor in tenors:
                     if tenor_factor == tenor and curve_factor == curve:
                         return idx
                     else:
                         idx = idx + 1
+
 
         elif risk_class in ['CreditQ', 'CreditNonQ']:
             for tenor in tenors:
@@ -101,33 +101,20 @@ class DeltaMargin(object):
 
             if len(pos_inflation) > 0:
                 s[len(s) - 1] = pos_inflation.Stat_Value
+
         elif risk_class == 'FX':
             s = np.ones(pos_gp.Bucket.nunique()) * pos_gp.Stat_Value.values[0]
 
-        elif risk_class == 'CreditQ':
-            tenors = params.CreditQ_Tenor
+        elif risk_class == 'CSR':
+            tenors = params.CSR_Tenor
+            issuers = pos_gp.issuer_id.sort_values().unique().tolist()
 
-            # 2 for securitization
-            s = np.zeros(pos_gp.Qualifier.nunique() * params.CreditQ_num_sec_type * len(tenors))
+            s = np.zeros(pos_gp.issuer_id.nunique() * len(tenors))
 
-            pos_gp.sort_values(['Qualifier', 'Label2'], inplace=True, ascending=True)
-
-            for j in range(pos_gp.Qualifier.nunique()):
-                pos_gp_qualifier = pos_gp[pos_gp.Qualifier == pos_gp.Qualifier.unique()[j]].copy()
-
-                pos_gp_qualifier_non_sec = pos_gp_qualifier[pos_gp_qualifier.Label2 == 'Non_Sec'].copy()
-
-                for i, row in pos_gp_qualifier_non_sec.iterrows():
-                    idx = self.find_factor_idx(row['Label1'], [], tenors, [], risk_class)
-                    if idx >= 0:
-                        s[idx + j * len(tenors) * params.CreditQ_num_sec_type] = row['AmountUSD']
-
-                pos_gp_qualifier_sec = pos_gp_qualifier[pos_gp_qualifier.Label2 == 'Sec'].copy()
-
-                for i, row in pos_gp_qualifier_sec.iterrows():
-                    idx = self.find_factor_idx(row['Label1'], [], tenors, [], risk_class)
-                    if idx >= 0:
-                        s[idx + j * len(tenors) * params.CreditQ_num_sec_type + len(tenors)] = row['AmountUSD']
+            for i, row in pos_gp.iterrows():
+                idx = self.find_factor_idx(row['Label2'], row['issuer_id'], tenors, issuers, risk_class)
+                if idx >= 0:
+                    s[idx] = row['Stat_Value']
 
         elif risk_class == 'CreditNonQ':
             tenors = params.CreditNonQ_Tenor
@@ -169,9 +156,9 @@ class DeltaMargin(object):
         elif risk_class == 'FX':
             RW = params.FX_Weights
         else:
-            if risk_class == 'CreditQ':
-                weights = params.CreditQ_Weights
-                num_factors = pos_gp.Qualifier.nunique() * len(params.CreditQ_Tenor) * params.CreditQ_num_sec_type
+            if risk_class == 'CSR':
+                weights = params.CSR_Weights
+                num_factors = pos_gp.issuer_id.nunique() * len(params.CSR_Tenor)
             elif risk_class == 'CreditNonQ':
                 weights = params.CreditNonQ_Weights
                 num_factors = pos_gp.Qualifier.nunique() * len(params.CreditNonQ_Tenor)
@@ -182,12 +169,10 @@ class DeltaMargin(object):
                 weights = params.Commodity_Weights
                 num_factors = pos_gp.Qualifier.nunique()
 
-            if risk_class != 'FX':
-                bucket = pd.DataFrame(pos_gp.Bucket.unique(), columns=['bucket'])
-                RW = pd.merge(bucket, weights, left_on=['bucket'], right_on=['bucket'], how='inner')
-                RW = np.array(RW.weight.values[0])
-            else:
-                RW = np.array([weights])
+            bucket = pd.DataFrame(pos_gp.Bucket.unique(), columns=['bucket'])
+            RW = pd.merge(bucket, weights, left_on=['bucket'], right_on=['bucket'], how='inner')
+            RW = np.array(RW.weight.values[0])
+
 
             RW = np.repeat(RW, num_factors)
 
@@ -224,17 +209,21 @@ class DeltaMargin(object):
                 Corr = np.append(Corr, inflation_rho, axis=0)
         elif risk_class == 'FX':
             Corr = np.ones((pos_gp.Bucket.nunique(), pos_gp.Bucket.nunique()))
+        elif risk_class == 'CSR':
+            num_tenors = len(params.CSR_Tenor)
+            num_issuers = pos_gp.issuer_id.nunique()
+
+            rho_issuers = np.zeros((num_issuers, num_issuers))
+            rho_issuers.fill(params.CSR_Rho_Name)
+            np.fill_diagonal(rho_issuers, 1)
+
+            rho_tenors = np.zeros((num_tenors, num_tenors))
+            rho_tenors.fill(params.CSR_Rho_Tenor)
+            np.fill_diagonal(rho_tenors, 1)
+
+            Corr = np.kron(rho_issuers, rho_tenors)
+
         else:
-            num_qualifiers = pos_gp.Qualifier.nunique()
-
-            F = np.zeros((len(CR), len(CR)))
-
-            for i in range(len(CR)):
-                for j in range(len(CR)):
-                    CRi = CR[i]
-                    CRj = CR[j]
-
-                    F[i][j] = min(CRi, CRj) / max(CRi, CRj)
 
             if risk_class in ['CreditQ', 'CreditNonQ']:
                 if risk_class == 'CreditQ':
@@ -297,6 +286,9 @@ class DeltaMargin(object):
         K = np.mat(WS) * np.mat(Corr) * np.mat(np.reshape(WS, (len(WS), 1)))
         K = max(K.item(0), 0)
         K = math.sqrt(K)
+
+        if risk_class == 'CSR' and gp.Bucket.unique()[0] in params.CSR_Others:
+            K = abs(WS).sum()
 
         if gp.RiskType.nunique() > 1:
             risk_type = '_'.join(gp.RiskType.unique())

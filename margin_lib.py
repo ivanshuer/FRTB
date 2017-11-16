@@ -63,8 +63,22 @@ def build_bucket_correlation(pos_delta, params, margin):
         g = np.ones((pos_delta.Group.nunique(), pos_delta.Group.nunique()))
         g.fill(params.FX_Gamma)
         np.fill_diagonal(g, 1)
-    elif risk_class == 'CreditQ':
-        g = params.CreditQ_Corr
+    elif risk_class == 'CSR':
+        g_sector = params.CSR_Sector_Corr
+
+        g_rating = np.ones((len(params.CSR_Bucket),len(params.CSR_Bucket)))
+        for i in range(len(params.CSR_Bucket)):
+            for j in range(len(params.CSR_Bucket)):
+                if (params.CSR_Bucket[i] in params.CSR_IG and params.CSR_Bucket[j] in params.CSR_HY) or \
+                        (params.CSR_Bucket[i] in params.CSR_HY and params.CSR_Bucket[j] in params.CSR_IG):
+                    g_rating[i, j] = params.CSR_Rho_Rating
+
+        g = g_rating * g_sector
+        g.columns = params.CSR_Bucket
+        g.index = params.CSR_Bucket
+        buckets = pos_delta.Group.unique()
+        g = g.ix[buckets, buckets]
+
     elif risk_class == 'CreditNonQ':
         g = params.CreditNonQ_Corr
     elif risk_class == 'Equity':

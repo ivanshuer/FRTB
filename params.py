@@ -30,20 +30,17 @@ IR_Inflation_Weights = 0.0225
 IR_Inflation_Rho = 0.4
 IR_LH = 60
 
-CreditQ_Bucket = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', 'Residual']
-CreditQ_Tenor = ['1y', '2y', '3y', '5y', '10y']
-CreditQ_CR_Sov_incl_Central_Banks = ['1', '7']
-CreditQ_CR_Corp_Entities = ['2', '3', '4', '5', '6', '8', '9', '10', '11', '12']
-CreditQ_CR_Not_Classified = ['Residual']
-CreditQ_Weights = configs.parse('CreditQ_weights', converters={'bucket': str})
-CreditQ_Rho_Agg_Same_IS = 0.98
-CreditQ_Rho_Agg_Diff_IS = 0.55
-CreditQ_Rho_Res_Same_IS = 0.5
-CreditQ_Rho_Res_Diff_IS = 0.5
-CreditQ_Corr = configs.parse('CreditQ_correlation')
-CreditQ_CR_Thrd = configs.parse('CreditQ_CR_THR')
-CreditQ_VRW = 0.35
-CreditQ_num_sec_type = 2
+CSR_Bucket = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15']
+CSR_Tenor = ['6M', '1Y', '3Y', '5Y', '10Y']
+CSR_IG = ['1', '2', '3', '4', '5', '6', '7', '8']
+CSR_HY = ['9', '10', '11', '12', '13', '14', '15']
+CSR_Others = ['16']
+CSR_Weights = configs.parse('CSR_weights', converters={'bucket': str})
+CSR_Rho_Name = 0.35
+CSR_Rho_Tenor = 0.65
+CSR_Rho_Rating = 0.5
+CSR_Sector_Corr = configs.parse('CSR_correlation')
+CSR_VRW = 0.35
 
 CreditNonQ_Bucket = ['1', '2', 'Residual']
 CreditNonQ_Tenor = ['1y', '2y', '3y', '5y', '10y']
