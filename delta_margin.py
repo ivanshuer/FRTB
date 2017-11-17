@@ -153,8 +153,23 @@ class DeltaMargin(object):
                 RW = np.append(RW, params.IR_Inflation_Weights)
 
             RW = np.array(RW)
+
+            bucket = pos_gp.Bucket.unique()[0]
+            if bucket in params.IR_Adjust_Curr:
+                RW = RW / math.sqrt(2)
+
         elif risk_class == 'FX':
             RW = params.FX_Weights
+
+            bucket = pos_gp.Bucket.unique()[0]
+
+            adj_currs = pd.DataFrame({'Bucket': params.FX_Adjust_Curr})
+            adj_currs = adj_currs.apply(mlib.change_FX_ticker_order, axis=1)
+            adj_currs = adj_currs.Bucket.values.tolist()
+
+            if bucket in adj_currs:
+                RW = RW / math.sqrt(2)
+
         else:
             if risk_class == 'CSR':
                 weights = params.CSR_Weights

@@ -67,6 +67,10 @@ def build_bucket_correlation(pos_delta, params, margin):
         g_sector = params.CSR_Sector_Corr
 
         CSR_buckets = params.CSR_IG + params.CSR_HY
+        CSR_buckets = [int(d) for d in CSR_buckets]
+        CSR_buckets.sort()
+        CSR_buckets = [str(d) for d in CSR_buckets]
+
         g_rating = np.ones((len(CSR_buckets),len(CSR_buckets)))
         for i in range(len(CSR_buckets)):
             for j in range(len(CSR_buckets)):

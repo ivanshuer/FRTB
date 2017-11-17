@@ -22,6 +22,7 @@ Vega_Alpha = 0.01
 IR_Tenor = ['3M', '6M', '1Y', '2Y', '3Y', '5Y', '10Y', '15Y', '20Y', '30Y']
 IR_Vega_Maturity = ['6M', '1Y', '3Y', '5Y', '10Y']
 IR_Vega_Residual_Maturity = ['6M', '1Y', '3Y', '5Y', '10Y']
+IR_Adjust_Curr = ['EUR', 'USD', 'GBP', 'AUD', 'JPY', 'SEK', 'CAD']
 IR_Weights = configs.parse('IR_weights', converters={'tenor': str})
 IR_Theta = 0.03
 IR_Fai = 0.999
@@ -94,6 +95,9 @@ Commodity_CR_Thrd = configs.parse('Commodity_CR_THR')
 Commodity_VRW = 0.36
 
 FX_Vega_Maturity = ['6M', '1Y', '3Y', '5Y', '10Y']
+FX_Adjust_Curr = ['USDEUR', 'USDJPY', 'USDGBP', 'USDAUD', 'USDCAD', 'USDCHF', 'USDMXN', 'USDCNY', 'USDNZD', 'USDRUB',
+                  'USDHKD', 'USDSGD', 'USDTRY', 'USDKRW', 'USDSEK', 'USDZAR', 'USDINR', 'USDNOK', 'USDBRL', 'EURJPY',
+                  'EURGBP', 'EURCHF', 'JPYAUD']
 FX_Weights = 0.3
 FX_Gamma = 0.6
 FX_LH = 40
