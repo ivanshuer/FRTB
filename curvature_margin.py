@@ -61,6 +61,10 @@ class CurvatureMargin(object):
             RW = params.IR_Weights
             RW = RW.weight.max()
 
+            bucket = pos_gp.Bucket.unique()[0]
+            if bucket in params.IR_Adjust_Curr:
+                RW = RW / math.sqrt(2)
+
             CVR_up = pos_gp[pos_gp.Qualifier == 'UP'].copy()
             CVR_down = pos_gp[pos_gp.Qualifier == 'DOWN'].copy()
 
