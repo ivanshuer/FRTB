@@ -146,8 +146,15 @@ def margin_risk_factor(pos, params, margin_loader):
 
     group = 'Bucket'
 
+    groups = pos_delta[group].values.tolist()
+    groups.sort()
+    if risk_class in ['CSR']:
+        groups = [int(d) for d in groups]
+        groups.sort()
+        groups = [str(d) for d in groups]
+
     pos_delta_gp_all = []
-    for gp in pos_delta[group].sort_values().unique():
+    for gp in groups:
         pos_delta_gp = pos_delta[pos_delta[group] == gp].copy()
         pos_delta_gp = margin_loader.margin_risk_group(pos_delta_gp, params)
         pos_delta_gp_all.append(pos_delta_gp)
@@ -182,6 +189,7 @@ def margin_risk_factor(pos, params, margin_loader):
 
         g = mlib.build_bucket_correlation(pos_delta, params, margin_loader.margin_type())
 
+        pos_delta.reset_index(inplace=True)
         if margin_loader.margin_type() == 'Curvature':
             for i in range(len(pos_delta)):
                 for j in range(len(pos_delta)):
