@@ -146,7 +146,7 @@ def margin_risk_factor(pos, params, margin_loader):
 
     group = 'Bucket'
 
-    groups = pos_delta[group].values.tolist()
+    groups = pos_delta[group].unique()
     groups.sort()
     if risk_class in ['CSR']:
         groups = [int(d) for d in groups]
