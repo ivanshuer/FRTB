@@ -112,15 +112,14 @@ def calc_curvature_margin(pos, params):
 
     if len(pos_curvature) > 0:
         # Aggregate Delta Sensitivities for Curvature
-        if pos.RiskClass.unique()[0] == 'IR':
-            pos_delta = pos[(pos.RiskType.isin(params.Delta_Factor)) & (~pos.RiskType.isin(['Risk_Inflation']))].copy()
-            pos_delta = pos_delta.groupby(['RiskClass', 'Bucket', 'security_id']).agg({'Stat_Value': np.sum})
-            pos_delta.reset_index(inplace=True)
-            pos_delta.rename(columns={'Stat_Value': 'Delta'}, inplace=True)
+        pos_delta = pos[(pos.RiskType.isin(params.Delta_Factor)) & (~pos.RiskType.isin(['Risk_Inflation']))].copy()
+        pos_delta = pos_delta.groupby(['RiskClass', 'Bucket', 'security_id']).agg({'Stat_Value': np.sum})
+        pos_delta.reset_index(inplace=True)
+        pos_delta.rename(columns={'Stat_Value': 'Delta'}, inplace=True)
 
-            pos_curvature = pd.merge(pos_curvature, pos_delta, how='left')
-            pos_curvature['Stat_Value'] = pos_curvature['Delta']
-            pos_curvature.drop(['Delta'], axis=1, inplace=True)
+        pos_curvature = pd.merge(pos_curvature, pos_delta, how='left')
+        pos_curvature['Stat_Value'] = pos_curvature['Delta']
+        pos_curvature.drop(['Delta'], axis=1, inplace=True)
 
         curvature_margin_loader = curvature_margin.CurvatureMargin()
         pos_curvature_margin = margin_risk_factor(pos_curvature, params, curvature_margin_loader)
