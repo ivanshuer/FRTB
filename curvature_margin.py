@@ -45,7 +45,7 @@ class CurvatureMargin(object):
         elif risk_class in ['Equity', 'Commodity']:
             factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'Bucket', 'RiskClass']
         elif risk_class == 'FX':
-            factor_group = ['CombinationID', 'ProductClass', 'RiskType', 'Qualifier', 'RiskClass']
+            factor_group = ['CombinationID', 'RiskType', 'Bucket', 'Qualifier', 'RiskClass']
 
         pos_gp = pos.groupby(factor_group)
         pos_delta = pos_gp.agg({'Stat_Value': np.sum, 'Raw_PV_Base': np.sum, 'Shifted_PV_Base': np.sum})
@@ -66,8 +66,11 @@ class CurvatureMargin(object):
             #     RW = RW / math.sqrt(2)
         elif risk_class == 'CSR':
             RW = params.CSR_Weights
-            RW = RW.weight.max()
+            # RW = RW.weight.max()
             factor = 'issuer_id'
+        elif risk_class == 'FX':
+            RW = params.FX_Weights
+            factor = 'Bucket'
 
         factors = pos_gp[factor].sort_values().unique().tolist()
         s = np.zeros(len(factors))
@@ -90,7 +93,7 @@ class CurvatureMargin(object):
     def build_in_bucket_correlation(self, pos_gp, params):
         risk_class = pos_gp.RiskClass.unique()[0]
 
-        if risk_class == 'IR':
+        if risk_class in ['IR', 'FX']:
             Corr = np.zeros((pos_gp.Bucket.nunique(), pos_gp.Bucket.nunique()))
         elif risk_class == 'CSR':
             num_issuers = pos_gp.issuer_id.nunique()

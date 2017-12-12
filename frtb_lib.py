@@ -138,9 +138,6 @@ def margin_risk_factor(pos, params, margin_loader):
     risk_class = pos.RiskClass.unique()[0]
     risk_type = pos.RiskType.unique()[0]
 
-    if risk_class == 'FX':
-        pos = pos.apply(mlib.change_FX_ticker_order, axis=1)
-
     pos_delta = margin_loader.net_sensitivities(pos, params)
 
     group = 'Bucket'
@@ -225,6 +222,9 @@ def calculate_sensitivity_risk(pos, params):
     for risk in pos.RiskClass.unique():
         logger.info('Calcualte Sensitivity Risk for {0}'.format(risk))
         pos_risk = pos[pos.RiskClass == risk].copy()
+
+        if risk == 'FX':
+            pos_risk = pos_risk.apply(mlib.change_FX_ticker_order, axis=1)
 
         pos_gp_delta_margin = calc_delta_margin(pos_risk, params)
         if len(pos_gp_delta_margin) > 0:
